@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LockerLink — Community Resource Manager</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:14px;color:#1a1a1a;background:#f5f5f3;min-height:100vh}
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:#fff;border-right:0.5px solid rgba(0,0,0,.12);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-logo{padding:16px;border-bottom:0.5px solid rgba(0,0,0,.12)}
+.sidebar-logo h1{font-size:15px;font-weight:500;color:#1a1a1a}
+.sidebar-logo p{font-size:11px;color:#888;margin-top:2px}
+.sidebar-nav{flex:1;padding:8px 0;overflow-y:auto}
+.nav-section{padding:8px 12px 4px;font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.05em}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;color:#666;font-size:13px;border-left:3px solid transparent;transition:all .15s}
+.nav-item:hover{background:#f5f5f3;color:#1a1a1a}
+.nav-item.active{background:#e6f1fb;color:#185fa5;border-left:3px solid #378add;font-weight:500}
+.nav-item i{font-size:16px}
+.sidebar-user{padding:12px 16px;border-top:0.5px solid rgba(0,0,0,.12);display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:50%;background:#e6f1fb;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#185fa5;flex-shrink:0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:#fff;border-bottom:0.5px solid rgba(0,0,0,.12);padding:12px 20px;display:flex;align-items:center;gap:12px}
+.topbar h2{font-size:16px;font-weight:500;flex:1}
+.content{flex:1;overflow-y:auto;padding:20px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:0.5px solid rgba(0,0,0,.25);border-radius:8px;background:#fff;color:#1a1a1a;font-size:13px;cursor:pointer;font-family:inherit}
+.btn:hover{background:#f5f5f3}
+.btn-primary{background:#378add;color:#fff;border-color:#378add}
+.btn-primary:hover{background:#185fa5}
+.btn-danger{background:#fcebeb;color:#a32d2d;border-color:#f7c1c1}
+.btn-sm{padding:4px 10px;font-size:12px}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.badge-active{background:#eaf3de;color:#3b6d11}
+.badge-inactive{background:#fcebeb;color:#a32d2d}
+.badge-barred{background:#faeeda;color:#854f0b}
+.badge-pending{background:#e6f1fb;color:#185fa5}
+.card{background:#fff;border:0.5px solid rgba(0,0,0,.12);border-radius:12px;padding:16px}
+.card+.card{margin-top:12px}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.metric{background:#f5f5f3;border-radius:8px;padding:12px}
+.metric-label{font-size:11px;color:#888;margin-bottom:4px}
+.metric-value{font-size:22px;font-weight:500}
+.metric-sub{font-size:11px;color:#888;margin-top:2px}
+input[type=text],input[type=email],input[type=password],input[type=date],input[type=number],select,textarea{width:100%;padding:7px 10px;border:0.5px solid rgba(0,0,0,.25);border-radius:8px;font-family:inherit;font-size:13px;color:#1a1a1a;background:#fff}
+input:focus,select:focus,textarea:focus{outline:none;box-shadow:0 0 0 2px #378add40}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-group{margin-bottom:12px}
+.form-label{font-size:12px;color:#666;margin-bottom:4px;display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;font-size:11px;font-weight:500;color:#888;border-bottom:0.5px solid rgba(0,0,0,.12)}
+td{padding:8px 10px;border-bottom:0.5px solid rgba(0,0,0,.08);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f5f5f3}
+.search-bar{position:relative;flex:1}
+.search-bar input{padding-left:34px}
+.search-bar i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;background:#f5f5f3;color:#666;margin:2px}
+.locker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:6px}
+.locker-cell{height:52px;border-radius:8px;border:0.5px solid rgba(0,0,0,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;cursor:pointer;transition:transform .1s;font-weight:500}
+.locker-cell:hover{transform:scale(1.05)}
+.lc-available{background:#eaf3de;color:#3b6d11;border-color:#c0dd97}
+.lc-active{background:#e6f1fb;color:#185fa5;border-color:#b5d4f4}
+.lc-barred{background:#faeeda;color:#854f0b;border-color:#fac775}
+.lc-broken{background:#fcebeb;color:#a32d2d;border-color:#f7c1c1}
+.lc-inactive{background:#f5f5f3;color:#aaa}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal{background:#fff;border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:500;margin-bottom:16px}
+.alert{padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;display:flex;align-items:flex-start;gap:8px}
+.alert-warning{background:#faeeda;color:#854f0b;border:0.5px solid #fac775}
+.alert-danger{background:#fcebeb;color:#a32d2d;border:0.5px solid #f7c1c1}
+.alert-success{background:#eaf3de;color:#3b6d11;border:0.5px solid #c0dd97}
+.alert-info{background:#e6f1fb;color:#185fa5;border:0.5px solid #b5d4f4}
+.divider{border-bottom:0.5px solid rgba(0,0,0,.08);margin:16px 0}
+.tab-bar{display:flex;gap:4px;margin-bottom:16px;border-bottom:0.5px solid rgba(0,0,0,.12)}
+.tab{padding:8px 14px;cursor:pointer;font-size:13px;color:#888;border-bottom:2px solid transparent;margin-bottom:-0.5px}
+.tab.active{color:#378add;border-bottom-color:#378add;font-weight:500}
+.participant-row{cursor:pointer}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.dot-active{background:#639922}
+.dot-inactive{background:#e24b4a}
+.dot-barred{background:#ba7517}
+.chat-area{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;padding:8px;background:#f5f5f3;border-radius:8px}
+.chat-msg{max-width:80%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5}
+.chat-from-ec{background:#378add;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.chat-from-p{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;border:0.5px solid rgba(0,0,0,.12)}
+.chat-meta{font-size:10px;opacity:.7;margin-top:2px}
+.pill-locker{display:inline-flex;align-items:center;padding:1px 8px;border-radius:20px;background:#e6f1fb;color:#185fa5;font-size:11px;margin:2px;font-weight:500}
+.credit-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:20px;background:#eaf3de;color:#3b6d11;font-size:12px;font-weight:500}
+.warn-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:20px;background:#faeeda;color:#854f0b;font-size:12px;font-weight:500}
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.checkin-log{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+.checkin-entry{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:#f5f5f3;font-size:12px}
+.timeline-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.missed-warning{background:#faeeda;border:0.5px solid #fac775;border-radius:8px;padding:10px 14px;font-size:13px;color:#854f0b;margin-bottom:8px}
+.nav-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#e24b4a;color:#fff;font-size:10px;margin-left:auto}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <h1><i class="ti ti-lock" style="font-size:14px"></i> LockerLink</h1>
+    <p>Community Resource Manager</p>
+  </div>
+  <div class="sidebar-nav" id="nav"></div>
+  <div class="sidebar-user" id="user-bar"></div>
+</div>
+<div class="main">
+  <div class="topbar">
+    <h2 id="page-title">Dashboard</h2>
+    <div id="topbar-actions"></div>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+</div>
+
+<script>
+const TODAY = new Date('2025-08-08');
+const todayStr = () => TODAY.toISOString().split('T')[0];
+
+function fmtDate(d){if(!d||d==='9/9/9999'||d==='9999-09-09')return '—';try{const dt=new Date(d);if(isNaN(dt))return d;return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch{return d}}
+function parseDate(s){if(!s||s==='9/9/9999'||s==='9999-09-09')return null;return new Date(s)}
+function daysBetween(a,b){return Math.round((b-a)/(1000*60*60*24))}
+function monthKey(d){return `${d.getFullYear()}-${d.getMonth()+1}`}
+
+const INITIAL_PARTICIPANTS = [
+  {id:'p1',first:'Jack',last:'Black',email:'jack@example.com',pin:'1234',
+   lockers:[18,38],barredLockers:[26],baggedLockers:[],oldLockers:[],
+   workStatus:true,plStatus:true,meetingStatus:true,credits:4,
+   renewalDate:'2025-08-25',firstDate:'2021-06-15',
+   workDates:['2025-06-30','2025-08-25','2025-08-26'],
+   meetings:['2025-08-01'],powerLunches:['2025-03-01'],
+   bars:[],status:'active',statusReason:'',notes:''},
+  {id:'p2',first:'Horace',last:'Mann',email:'horace@example.com',pin:'2345',
+   lockers:[27,54,5],barredLockers:[],baggedLockers:[],oldLockers:[],
+   workStatus:false,plStatus:true,meetingStatus:true,credits:3,
+   renewalDate:'2025-08-25',firstDate:'2024-03-07',
+   workDates:[],meetings:['2025-08-01'],powerLunches:['2025-11-01'],
+   bars:[],status:'inactive',statusReason:'Missing work dates for month',notes:''},
+  {id:'p3',first:'Jane',last:'Austin',email:'jane@example.com',pin:'3456',
+   lockers:[152,3],barredLockers:[],baggedLockers:[],oldLockers:[],
+   workStatus:false,plStatus:true,meetingStatus:true,credits:5,
+   renewalDate:'2025-08-11',firstDate:'2018-02-07',
+   workDates:[],meetings:['2025-08-01'],powerLunches:['2026-01-01'],
+   bars:[],status:'inactive',statusReason:'Missing work dates for month',notes:''},
+  {id:'p4',first:'Steven',last:'Socks',email:'steven@example.com',pin:'4567',
+   lockers:[9,2],barredLockers:[],baggedLockers:[343],oldLockers:[],
+   workStatus:true,plStatus:true,meetingStatus:true,credits:5,
+   renewalDate:'2025-08-05',firstDate:'2025-07-01',
+   workDates:['2025-08-31'],meetings:['2025-08-01'],powerLunches:[],
+   bars:[],status:'active',statusReason:'',notes:''},
+  {id:'p5',first:'Mary',last:'Jane',email:'mary@example.com',pin:'5678',
+   lockers:[1,26],barredLockers:[],baggedLockers:[125],oldLockers:[],
+   workStatus:true,plStatus:true,meetingStatus:true,credits:5,
+   renewalDate:'2025-08-02',firstDate:'2025-07-05',
+   workDates:['2025-08-29','2025-08-30'],meetings:['2025-08-01'],powerLunches:['2025-03-01'],
+   bars:[],status:'active',statusReason:'',notes:''},
+  {id:'p6',first:'Simon',last:'Stewart',email:'simon@example.com',pin:'6789',
+   lockers:[25],barredLockers:[],baggedLockers:[],oldLockers:[],
+   workStatus:true,plStatus:true,meetingStatus:true,credits:5,
+   renewalDate:'2025-07-06',firstDate:'2025-01-10',
+   workDates:[],meetings:['2025-07-01'],powerLunches:[],
+   bars:[],status:'inactive',statusReason:'Renewal expired',notes:''},
+];
+
+const INITIAL_LOCKERS = Array.from({length:400},(_,i)=>{
+  const num=i+1;
+  const p=INITIAL_PARTICIPANTS.find(x=>x.lockers.includes(num)||x.barredLockers.includes(num));
+  const broken=[14].includes(num);
+  const available=!p&&!broken;
+  return {number:num,working:!broken,problem:broken?'broken latch':'',
+    assignedTo:p?p.id:null,status:p?(p.barredLockers.includes(num)?'barred':'active'):(broken?'broken':'available')};
+});
+
+const INITIAL_USERS=[
+  {id:'ec1',role:'ec',name:'Admin EC',email:'ec@lockerlink.org',password:'admin123'},
+  {id:'ec2',role:'ec',name:'Sarah Chen',email:'sarah@lockerlink.org',password:'ec456'},
+];
+
+let STATE={
+  participants:[...INITIAL_PARTICIPANTS],
+  lockers:[...INITIAL_LOCKERS],
+  users:[...INITIAL_USERS],
+  attendance:[],
+  messages:[],
+  bars:[],
+  checkins:[],
+  currentUser:null,
+  page:'dashboard',
+  modal:null,
+  _activeThread:null,
+  _heldLockers:[],
+  _lastMonthReset:null,
+};
+
+function toast(msg,dur=3000){
+  let t=document.getElementById('toast-el');
+  if(!t){t=document.createElement('div');t.id='toast-el';t.className='toast';document.body.appendChild(t)}
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+function loadState(){
+  try{
+    const saved=localStorage.getItem('lockerlink_state');
+    if(saved){const s=JSON.parse(saved);Object.assign(STATE,s)}
+  }catch(e){console.warn('Could not load state',e)}
+}
+
+function save(){
+  try{localStorage.setItem('lockerlink_state',JSON.stringify(STATE))}catch(e){console.warn('Could not save',e)}
+}
+
+function monthlyReset(){
+  const key=monthKey(TODAY);
+  if(STATE._lastMonthReset===key) return;
+  STATE._lastMonthReset=key;
+  STATE.participants.forEach(p=>{
+    p.meetingStatus=false;
+    if(p.missedDateWarnings){
+      p.missedDateWarnings=p.missedDateWarnings.filter(w=>{
+        const deadline=parseDate(w.deadline);
+        if(deadline&&deadline<TODAY&&!w.resolved){
+          issueAutoBar(p,'Missed work date replacement not selected within 2 weeks');
+          return false;
+        }
+        return !w.resolved;
+      });
+    }
+  });
+  save();
+}
+
+function issueAutoBar(p,reason){
+  if(!p.bars)p.bars=[];
+  const end=new Date(TODAY);end.setDate(end.getDate()+30);
+  p.bars.push({id:'b'+Date.now(),startDate:todayStr(),endDate:end.toISOString().split('T')[0],permanent:false,reason,auto:true});
+}
+
+function applyCredits(p){
+  const curMonth=monthKey(TODAY);
+  const mwd=p.workDates.filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===curMonth}).length;
+  const numLockers=p.lockers.length;
+  if(numLockers===0)return;
+  const extra=mwd-numLockers;
+  if(extra>0){
+    p.credits=(p.credits||0)+extra;
+    toast(`Credit earned! ${p.first} now has ${p.credits} credits.`);
+  } else if(extra<0&&(p.credits||0)>0){
+    const use=Math.min(Math.abs(extra),p.credits);
+    p.credits-=use;
+    toast(`Credit used. ${p.first} has ${p.credits} remaining.`);
+  }
+}
+
+function checkAutoRules(){
+  STATE.participants.forEach(p=>{
+    let reasons=[];
+    const today=TODAY;
+    const curMonth=monthKey(today);
+    const numLockers=p.lockers.length;
+
+    if(p.bars&&p.bars.length>0){
+      const activeBars=p.bars.filter(b=>{
+        if(b.permanent)return true;
+        const end=parseDate(b.endDate);
+        return end&&end>=today;
+      });
+      if(activeBars.length>0){p.status='barred';p.statusReason='Active bar: '+activeBars[0].reason;return}
+    }
+
+    const renewDate=parseDate(p.renewalDate);
+    if(renewDate){
+      const nextMonth=new Date(renewDate);nextMonth.setMonth(nextMonth.getMonth()+1);
+      const day16=new Date(nextMonth.getFullYear(),nextMonth.getMonth(),16);
+      if(today>=day16&&monthKey(today)===monthKey(nextMonth)){
+        reasons.push('Non-renewal: locker set inactive (non-renewal given)');
+      }
+    }
+
+    const monthWorkDates=p.workDates.filter(d=>{
+      const pd=parseDate(d);return pd&&monthKey(pd)===curMonth;
+    });
+    const deficit=numLockers-monthWorkDates.length;
+    const creditCover=Math.min(p.credits||0,deficit>0?deficit:0);
+    const netDeficit=deficit-creditCover;
+    if(numLockers>0&&netDeficit>0){
+      const warn=p.missedDateWarnings||[];
+      const activeWarn=warn.filter(w=>!w.resolved&&parseDate(w.deadline)>=today);
+      if(activeWarn.length>0){
+        reasons.push(`${netDeficit} missed work date(s) — replacement required by ${fmtDate(activeWarn[0].deadline)}`);
+      } else {
+        reasons.push(`Missing ${netDeficit} work date(s) for ${today.toLocaleString('en-US',{month:'long'})}`);
+      }
+    }
+
+    // Meeting: rolling 30-day window from attendance records
+    const thirtyDaysAgo=new Date(today);thirtyDaysAgo.setDate(thirtyDaysAgo.getDate()-30);
+    const recentMeeting=(STATE.attendance||[]).some(a=>{
+      if(a.participantId!==p.id||a.type!=='meeting')return false;
+      const ad=parseDate(a.recordedDate||a.date);return ad&&ad>=thirtyDaysAgo&&ad<=today;
+    });
+    p.meetingStatus=recentMeeting;
+    if(!recentMeeting) reasons.push('No meeting in the last 30 days');
+
+    const currentYear=today.getFullYear();
+    const hasPL=(STATE.attendance||[]).some(a=>{
+      if(a.participantId!==p.id||a.type!=='power-lunch')return false;
+      const ad=parseDate(a.recordedDate||a.date);return ad&&ad.getFullYear()===currentYear;
+    });
+    p.plStatus=hasPL;
+    if(!hasPL) reasons.push('Missing power lunch for '+currentYear);
+
+    if(reasons.length>0){p.status='inactive';p.statusReason=reasons.join('; ')}
+    else{p.status='active';p.statusReason=''}
+  });
+}
+
+function render(){
+  renderNav();
+  renderUserBar();
+  renderTopbar();
+  renderContent();
+}
+
+function renderNav(){
+  const nav=document.getElementById('nav');
+  if(!STATE.currentUser){nav.innerHTML='';return}
+  const isEC=STATE.currentUser.role==='ec';
+  const unread=STATE.messages.filter(m=>!m.read&&m.fromRole==='participant').length;
+  const pendingWarnings=STATE.participants.filter(p=>(p.missedDateWarnings||[]).some(w=>!w.resolved&&parseDate(w.deadline)>=TODAY)).length;
+  const pages=isEC?[
+    {id:'dashboard',icon:'ti-dashboard',label:'Dashboard'},
+    {id:'participants',icon:'ti-users',label:'Participants'},
+    {id:'attendance',icon:'ti-clipboard-check',label:'Attendance'},
+    {id:'lockers',icon:'ti-lock',label:'Lockers'},
+    {id:'renewals',icon:'ti-calendar-event',label:'Renewals'},
+    {id:'bars',icon:'ti-ban',label:'Bars'},
+    {id:'messages',icon:'ti-message-circle',label:'Messages',badge:unread},
+    {id:'reports',icon:'ti-chart-bar',label:'Reports'},
+    {id:'ec-mgmt',icon:'ti-shield',label:'EC Management'},
+  ]:[
+    {id:'my-profile',icon:'ti-user',label:'My Profile'},
+    {id:'my-schedule',icon:'ti-calendar',label:'My Schedule'},
+    {id:'messages',icon:'ti-message-circle',label:'Messages'},
+  ];
+  nav.innerHTML=pages.map(p=>`
+    <div class="nav-item ${STATE.page===p.id?'active':''}" onclick="goTo('${p.id}')">
+      <i class="ti ${p.icon}" aria-hidden="true"></i>${p.label}
+      ${p.badge?`<span class="nav-badge">${p.badge}</span>`:''}
+    </div>`).join('');
+}
+
+function renderUserBar(){
+  const el=document.getElementById('user-bar');
+  if(!STATE.currentUser){el.innerHTML='';return}
+  const init=(STATE.currentUser.name||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+  el.innerHTML=`<div class="avatar">${init}</div>
+    <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${STATE.currentUser.name}</div>
+    <div style="font-size:11px;color:#888">${STATE.currentUser.role==='ec'?'EC Manager':'Participant'}</div></div>
+    <i class="ti ti-logout" style="font-size:16px;cursor:pointer;color:#aaa" onclick="logout()" aria-label="Logout" title="Logout"></i>`;
+}
+
+function renderTopbar(){
+  const titles={dashboard:'Dashboard',participants:'Participants',attendance:'Daily Attendance',lockers:'Locker Inventory',renewals:'Renewal Management',bars:'Bar Records',messages:'Messages',reports:'Reports & Activity','my-profile':'My Profile','my-schedule':'My Schedule','ec-mgmt':'EC Management'};
+  document.getElementById('page-title').textContent=titles[STATE.page]||STATE.page;
+  const el=document.getElementById('topbar-actions');
+  if(STATE.page==='participants'&&STATE.currentUser?.role==='ec'){
+    el.innerHTML=`<button class="btn btn-primary btn-sm" onclick="openModal('add-participant')"><i class="ti ti-plus"></i> Add Participant</button>`;
+  } else if(STATE.page==='attendance'&&STATE.currentUser?.role==='ec'){
+    el.innerHTML=`<button class="btn btn-primary btn-sm" onclick="openModal('take-attendance')"><i class="ti ti-clipboard-check"></i> Take Attendance</button>`;
+  } else if(STATE.page==='messages'&&STATE.currentUser?.role==='ec'){
+    el.innerHTML=`<button class="btn btn-sm" onclick="openNewMessage()"><i class="ti ti-send"></i> New message</button><button class="btn btn-sm" style="margin-left:6px" onclick="openModal('broadcast')"><i class="ti ti-speakerphone"></i> Broadcast</button>`;
+  } else if(STATE.page==='lockers'&&STATE.currentUser?.role==='ec'){
+    el.innerHTML=`<button class="btn btn-sm" onclick="openModal('add-locker')"><i class="ti ti-plus"></i> Report broken</button>`;
+  } else {el.innerHTML='';}
+}
+
+function goTo(page){STATE.page=page;render()}
+function logout(){STATE.currentUser=null;STATE.page='dashboard';save();render()}
+
+function renderContent(){
+  const el=document.getElementById('content');
+  if(!STATE.currentUser){el.innerHTML=renderLogin();return}
+  const r={
+    dashboard:renderDashboard,
+    participants:renderParticipants,
+    attendance:renderAttendancePage,
+    lockers:renderLockers,
+    renewals:renderRenewals,
+    bars:renderBars,
+    messages:renderMessages,
+    reports:renderReports,
+    'ec-mgmt':renderEcMgmt,
+    'my-profile':renderMyProfile,
+    'my-schedule':renderMySchedule,
+  };
+  el.innerHTML=(r[STATE.page]||renderDashboard)();
+  setTimeout(()=>{if(document.getElementById('locker-grid'))renderLockerGrid()},80);
+}
+
+function renderLogin(){
+  return `<div style="display:flex;align-items:center;justify-content:center;min-height:80vh">
+  <div style="width:360px">
+  <div style="text-align:center;margin-bottom:24px">
+    <i class="ti ti-lock" style="font-size:40px;color:#378add"></i>
+    <h1 style="font-size:22px;font-weight:500;margin-top:8px">LockerLink</h1>
+    <p style="color:#888;font-size:13px">Community Resource Manager</p>
+  </div>
+  <div class="card">
+    <div class="form-group"><label class="form-label">Email</label><input type="email" id="login-email" placeholder="your@email.org"></div>
+    <div class="form-group"><label class="form-label">Password</label><input type="password" id="login-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Sign in</button>
+    <div id="login-err" style="color:#a32d2d;font-size:12px;margin-top:8px;text-align:center"></div>
+    <div class="divider" style="margin:16px 0"></div>
+    <p style="font-size:12px;color:#888;text-align:center">Participants: use registered email + PIN as password</p>
+    <p style="font-size:12px;color:#888;text-align:center;margin-top:6px">
+      <b>EC demo:</b> ec@lockerlink.org / admin123<br>
+      <b>Participant demo:</b> jack@example.com / 1234
+    </p>
+  </div>
+  </div></div>`;
+}
+
+function doLogin(){
+  const email=document.getElementById('login-email').value.trim().toLowerCase();
+  const pw=document.getElementById('login-pw').value;
+  const ec=STATE.users.find(u=>u.email.toLowerCase()===email&&u.password===pw);
+  if(ec){STATE.currentUser={...ec};save();render();return}
+  const p=STATE.participants.find(u=>u.email.toLowerCase()===email&&u.pin===pw);
+  if(p){STATE.currentUser={id:p.id,role:'participant',name:`${p.first} ${p.last}`,email:p.email};save();render();return}
+  document.getElementById('login-err').textContent='Invalid email or password.';
+}
+
+function renderDashboard(){
+  const ps=STATE.participants;
+  const active=ps.filter(p=>p.status==='active').length;
+  const inactive=ps.filter(p=>p.status==='inactive').length;
+  const barred=ps.filter(p=>p.status==='barred').length;
+  const availLockers=STATE.lockers.filter(l=>l.status==='available').length;
+  const activeLockers=STATE.lockers.filter(l=>l.status==='active').length;
+  const brokenLockers=STATE.lockers.filter(l=>!l.working).length;
+  const today=TODAY;
+  const renewDue=ps.filter(p=>{const rd=parseDate(p.renewalDate);return rd&&daysBetween(today,rd)<=7&&daysBetween(today,rd)>=0}).length;
+  const unread=STATE.messages.filter(m=>!m.read&&m.fromRole==='participant').length;
+
+  return `<div class="metric-grid">
+  <div class="metric"><div class="metric-label">Active participants</div><div class="metric-value" style="color:#3b6d11">${active}</div></div>
+  <div class="metric"><div class="metric-label">Inactive</div><div class="metric-value" style="color:#e24b4a">${inactive}</div></div>
+  <div class="metric"><div class="metric-label">Barred</div><div class="metric-value" style="color:#ba7517">${barred}</div></div>
+  <div class="metric"><div class="metric-label">Available lockers</div><div class="metric-value">${availLockers}</div></div>
+  <div class="metric"><div class="metric-label">Active lockers</div><div class="metric-value">${activeLockers}</div></div>
+  <div class="metric"><div class="metric-label">Broken lockers</div><div class="metric-value" style="color:#e24b4a">${brokenLockers}</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div class="card">
+    <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-alert-triangle" style="color:#ba7517"></i> Alerts</div>
+    ${renewDue>0?`<div class="alert alert-warning"><i class="ti ti-calendar"></i> ${renewDue} participant(s) renewal due within 7 days</div>`:''}
+    ${unread>0?`<div class="alert alert-info"><i class="ti ti-message-circle"></i> ${unread} unread participant message(s)</div>`:''}
+    ${renewDue===0&&unread===0?'<p style="color:#888;font-size:13px">No current alerts.</p>':''}
+    <button class="btn btn-sm" style="margin-top:8px" onclick="goTo('renewals')">View renewals <i class="ti ti-arrow-right"></i></button>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-users"></i> Recent participants</div>
+    ${ps.slice(0,5).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:0.5px solid rgba(0,0,0,.08);cursor:pointer" onclick="viewParticipant('${p.id}')">
+      <div class="avatar" style="width:28px;height:28px;font-size:11px">${p.first[0]}${p.last[0]}</div>
+      <div style="flex:1"><div style="font-size:13px">${p.first} ${p.last}</div></div>
+      <span class="badge badge-${p.status}">${p.status}</span>
+    </div>`).join('')}
+    <button class="btn btn-sm" style="margin-top:10px" onclick="goTo('participants')">All participants <i class="ti ti-arrow-right"></i></button>
+  </div>
+  </div>`;
+}
+
+function renderParticipants(){
+  return `<div style="display:flex;gap:10px;margin-bottom:16px">
+  <div class="search-bar" style="flex:1"><i class="ti ti-search"></i><input type="text" id="p-search" placeholder="Search by name..." oninput="filterParticipants()"></div>
+  <select id="p-filter" onchange="filterParticipants()" style="width:140px"><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="barred">Barred</option></select>
+  </div>
+  <div class="card" style="padding:0">
+  <table id="p-table">
+  <thead><tr><th>Name</th><th>Status</th><th>Lockers</th><th>Renewal</th><th>Work dates</th><th>Credits</th><th>Actions</th></tr></thead>
+  <tbody id="p-tbody">${participantRows(STATE.participants)}</tbody>
+  </table></div>`;
+}
+
+function participantRows(ps){
+  const today=TODAY;
+  return ps.map(p=>{
+    const rd=parseDate(p.renewalDate);
+    const daysUntil=rd?daysBetween(today,rd):null;
+    const renewWarn=daysUntil!==null&&daysUntil<=7&&daysUntil>=0;
+    const curMonth=monthKey(today);
+    const mwd=p.workDates.filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===curMonth}).length;
+    return `<tr class="participant-row" onclick="viewParticipant('${p.id}')">
+    <td><span class="status-dot dot-${p.status}"></span>${p.first} ${p.last}</td>
+    <td><span class="badge badge-${p.status}">${p.status}</span></td>
+    <td>${p.lockers.map(n=>`<span class="pill-locker">${n}</span>`).join('')}</td>
+    <td style="color:${renewWarn?'#ba7517':'inherit'}">${fmtDate(p.renewalDate)}${renewWarn?` <i class="ti ti-alert-triangle" style="font-size:12px"></i>`:''}</td>
+    <td>${mwd}/${p.lockers.length}</td>
+    <td>${p.credits||0}</td>
+    <td onclick="event.stopPropagation()">
+      <button class="btn btn-sm" onclick="viewParticipant('${p.id}')"><i class="ti ti-eye"></i></button>
+      <button class="btn btn-sm btn-danger" onclick="openBarModal('${p.id}')"><i class="ti ti-ban"></i></button>
+    </td></tr>`;
+  }).join('');
+}
+
+function filterParticipants(){
+  const q=(document.getElementById('p-search')||{value:''}).value.toLowerCase();
+  const f=(document.getElementById('p-filter')||{value:''}).value;
+  const filtered=STATE.participants.filter(p=>{
+    const name=`${p.first} ${p.last}`.toLowerCase();
+    return(!q||name.includes(q))&&(!f||p.status===f);
+  });
+  document.getElementById('p-tbody').innerHTML=participantRows(filtered);
+}
+
+function viewParticipant(id){openModal('view-participant',id)}
+
+function openModal(type,id){
+  STATE.modal={type,id};
+  let html='';
+  if(type==='view-participant') html=renderParticipantModal(id);
+  else if(type==='add-participant') html=renderAddParticipantModal();
+  else if(type==='take-attendance') html=renderAttendanceModal();
+  else if(type==='assign-locker') html=renderAssignLockerModal(id);
+  else if(type==='bar-modal') html=renderBarModal(id);
+  else if(type==='renew-modal') html=renderRenewModal(id);
+  else if(type==='missed-date') html=renderMissedDateModal(id);
+  else if(type==='adjust-credits') html=renderAdjustCreditsModal(id);
+  else if(type==='checkin-log') html=renderCheckinLogModal(id);
+  else if(type==='broadcast') html=renderBroadcastModal();
+  else if(type==='add-locker') html=renderMarkBrokenModal();
+  else if(type==='unassign-locker') html=renderUnassignLockerModal(id);
+  else return;
+  let root=document.getElementById('modal-root');
+  if(!root){root=document.createElement('div');root.id='modal-root';document.body.appendChild(root)}
+  root.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`;
+}
+
+function closeModal(){const r=document.getElementById('modal-root');if(r)r.innerHTML='';STATE.modal=null}
+
+function renderParticipantModal(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return'<p>Not found</p>';
+  const today=TODAY;
+  const curMonth=monthKey(today);
+  const mwd=p.workDates.filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===curMonth});
+  const deficit=p.lockers.length-mwd.length;
+  const activeBars=(p.bars||[]).filter(b=>b.permanent||(parseDate(b.endDate)>=today));
+  const rd=parseDate(p.renewalDate);
+  const daysUntil=rd?daysBetween(today,rd):null;
+
+  return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+  <div class="avatar" style="width:48px;height:48px;font-size:18px">${p.first[0]}${p.last[0]}</div>
+  <div><div style="font-size:18px;font-weight:500">${p.first} ${p.last}</div>
+  <div style="font-size:12px;color:#888">${p.email} · Member since ${fmtDate(p.firstDate)}</div></div>
+  <span class="badge badge-${p.status}" style="margin-left:auto">${p.status}</span>
+  </div>
+  ${p.statusReason?`<div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> ${p.statusReason}</div>`:''}
+  ${daysUntil!==null&&daysUntil<=7&&daysUntil>=0?`<div class="alert alert-warning"><i class="ti ti-calendar"></i> Renewal due in ${daysUntil} days</div>`:''}
+  ${activeBars.length>0?`<div class="alert alert-danger"><i class="ti ti-ban"></i> ${activeBars.length} active bar(s): ${activeBars.map(b=>b.reason+(b.permanent?' (permanent)':` until ${fmtDate(b.endDate)}`)).join(', ')}</div>`:''}
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0">
+  <div class="metric"><div class="metric-label">Credits</div><div class="metric-value">${p.credits||0}</div></div>
+  <div class="metric"><div class="metric-label">Lockers</div><div class="metric-value">${p.lockers.length}</div></div>
+  <div class="metric"><div class="metric-label">Work this month</div><div class="metric-value" style="color:${deficit>0?'#e24b4a':'#3b6d11'}">${mwd.length}/${p.lockers.length}</div></div>
+  </div>
+  <div class="divider"></div>
+  <div style="margin-bottom:12px">
+    <div style="font-size:12px;font-weight:500;margin-bottom:6px">Active lockers</div>
+    ${p.lockers.map(n=>`<span class="pill-locker">#${n}</span>`).join('') || '<span style="color:#888;font-size:12px">None</span>'}
+    ${p.barredLockers&&p.barredLockers.length?`<div style="margin-top:6px;font-size:12px;font-weight:500;color:#ba7517">Barred lockers: ${p.barredLockers.map(n=>`#${n}`).join(', ')}</div>`:''}
+  </div>
+  <div style="margin-bottom:12px">
+    <div style="font-size:12px;font-weight:500;margin-bottom:6px">Work dates this month</div>
+    ${mwd.length?mwd.map(d=>`<span class="tag"><i class="ti ti-calendar" style="font-size:12px"></i>${fmtDate(d)}</span>`).join(''):'<span style="color:#888;font-size:12px">None yet</span>'}
+    ${deficit>0?`<div style="margin-top:6px"><span class="badge badge-inactive">${deficit} more needed this month</span></div>`:''}
+  </div>
+  <div style="margin-bottom:12px">
+    <div style="font-size:12px;font-weight:500;margin-bottom:6px">Compliance</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="badge ${p.meetingStatus?'badge-active':'badge-inactive'}"><i class="ti ti-users" style="font-size:10px"></i> Meeting ${p.meetingStatus?'✓':'✗'}</span>
+      <span class="badge ${p.plStatus?'badge-active':'badge-inactive'}"><i class="ti ti-star" style="font-size:10px"></i> Power Lunch ${p.plStatus?'✓':'✗'}</span>
+      <span class="badge ${p.workStatus?'badge-active':'badge-inactive'}"><i class="ti ti-tool" style="font-size:10px"></i> Work ${p.workStatus?'✓':'✗'}</span>
+    </div>
+  </div>
+  ${(p.bars||[]).length>0?`<div class="divider"></div>
+  <div style="font-size:12px;font-weight:500;margin-bottom:6px">Bar history</div>
+  ${p.bars.map(b=>`<div style="font-size:12px;padding:4px 0;border-bottom:0.5px solid rgba(0,0,0,.08)">
+    <span style="color:#a32d2d">${b.permanent?'Permanent':'Temporary ('+fmtDate(b.startDate)+' – '+fmtDate(b.endDate)+')'}</span>: ${b.reason}
+  </div>`).join('')}`:''}
+  <div class="divider"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="openModal('assign-locker','${p.id}')"><i class="ti ti-lock-plus"></i> Assign locker</button>
+    <button class="btn btn-sm" onclick="openModal('renew-modal','${p.id}')"><i class="ti ti-refresh"></i> Renew</button>
+    <button class="btn btn-sm" onclick="addWorkDate('${p.id}')"><i class="ti ti-calendar-plus"></i> Add work date</button>
+    <button class="btn btn-sm btn-danger" onclick="closeModal();openModal('bar-modal','${p.id}')"><i class="ti ti-ban"></i> Issue bar</button>
+    <button class="btn btn-sm" onclick="openModal('missed-date','${p.id}')"><i class="ti ti-alert-triangle"></i> Mark missed date</button>
+    <button class="btn btn-sm" onclick="openModal('adjust-credits','${p.id}')"><i class="ti ti-coin"></i> Adjust credits</button>
+    <button class="btn btn-sm" onclick="openModal('checkin-log','${p.id}')"><i class="ti ti-history"></i> Check-in log</button>
+    <button class="btn btn-sm" onclick="closeModal()">Close</button>
+  </div>`;
+}
+
+function addWorkDate(id){
+  const d=prompt('Enter work date (YYYY-MM-DD):',todayStr());
+  if(!d)return;
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return;
+  p.workDates.push(d);
+  updateWorkStatus(p);
+  checkAutoRules();save();
+  openModal('view-participant',id);
+}
+
+function updateWorkStatus(p){
+  const curMonth=monthKey(TODAY);
+  const mwd=p.workDates.filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===curMonth});
+  p.workStatus=mwd.length>=p.lockers.length;
+}
+
+function renderAddParticipantModal(){
+  return `<div class="modal-title">Add participant</div>
+  <div class="form-row"><div class="form-group"><label class="form-label">First name</label><input type="text" id="np-first"></div>
+  <div class="form-group"><label class="form-label">Last name</label><input type="text" id="np-last"></div></div>
+  <div class="form-group"><label class="form-label">Email</label><input type="email" id="np-email"></div>
+  <div class="form-group"><label class="form-label">PIN (4 digits)</label><input type="text" id="np-pin" maxlength="4"></div>
+  <div class="form-row">
+  <div class="form-group"><label class="form-label">First date</label><input type="date" id="np-first-date" value="${todayStr()}"></div>
+  <div class="form-group"><label class="form-label">Number of lockers</label><select id="np-lockers"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
+  </div>
+  <div class="form-group"><label class="form-label">Renewal date</label><input type="date" id="np-renewal"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-primary" onclick="doAddParticipant()">Add participant</button>
+  </div>`;
+}
+
+function doAddParticipant(){
+  const first=document.getElementById('np-first').value.trim();
+  const last=document.getElementById('np-last').value.trim();
+  const email=document.getElementById('np-email').value.trim();
+  const pin=document.getElementById('np-pin').value.trim();
+  const fd=document.getElementById('np-first-date').value;
+  const numLock=parseInt(document.getElementById('np-lockers').value)||1;
+  const renewal=document.getElementById('np-renewal').value;
+  if(!first||!last||!email||!pin){alert('Please fill all required fields.');return}
+  const availLocks=STATE.lockers.filter(l=>l.status==='available'&&l.working);
+  if(availLocks.length<numLock){alert('Not enough available lockers in inventory.');return}
+  const assigned=availLocks.slice(0,numLock).map(l=>l.number);
+  const id='p'+Date.now();
+  const newP={id,first,last,email,pin,lockers:assigned,barredLockers:[],baggedLockers:[],oldLockers:[],
+    workStatus:false,plStatus:false,meetingStatus:false,credits:0,
+    renewalDate:renewal||todayStr(),firstDate:fd||todayStr(),
+    workDates:[],meetings:[],powerLunches:[],bars:[],status:'inactive',statusReason:'New participant — awaiting compliance',notes:''};
+  assigned.forEach(n=>{const l=STATE.lockers.find(x=>x.number===n);if(l){l.status='active';l.assignedTo=id}});
+  STATE.participants.push(newP);
+  checkAutoRules();save();closeModal();
+  STATE.page='participants';render();
+}
+
+function renderAttendancePage(){
+  const today=todayStr();
+  const todayAttendance=(STATE.attendance||[]).filter(a=>a.date===today);
+  const thirtyDaysAgo=new Date(TODAY);thirtyDaysAgo.setDate(thirtyDaysAgo.getDate()-30);
+
+  // participants whose meeting is expiring soon (within 7 days)
+  const meetingExpiringSoon=STATE.participants.filter(p=>{
+    const recs=(STATE.attendance||[]).filter(a=>a.participantId===p.id&&a.type==='meeting');
+    if(!recs.length)return false;
+    recs.sort((a,b)=>new Date(b.recordedDate||b.date)-new Date(a.recordedDate||a.date));
+    const last=parseDate(recs[0].recordedDate||recs[0].date);
+    if(!last)return false;
+    const expiry=new Date(last);expiry.setDate(expiry.getDate()+30);
+    const days=daysBetween(TODAY,expiry);
+    return days>=0&&days<=7;
+  });
+
+  return `${meetingExpiringSoon.length?`<div class="alert alert-warning" style="margin-bottom:12px"><i class="ti ti-clock"></i> <b>${meetingExpiringSoon.length}</b> participant meeting credit(s) expiring within 7 days: ${meetingExpiringSoon.map(p=>p.first+' '+p.last).join(', ')}</div>`:''}
+  <div class="card" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="font-size:13px;font-weight:500"><i class="ti ti-clipboard-check"></i> Attendance entered today (${todayAttendance.length} records)</div>
+  </div>
+  ${todayAttendance.length?`<table><thead><tr><th>Participant</th><th>Entered at</th><th>Type</th><th>Date credited</th></tr></thead><tbody>
+  ${todayAttendance.map(a=>{
+    const p=STATE.participants.find(x=>x.id===a.participantId);
+    const typeLabel={'work':'Work shift','meeting':'Meeting','power-lunch':'Power Lunch','locker-checkin':'Check-in'}[a.type]||a.type;
+    return`<tr>
+      <td>${p?p.first+' '+p.last:a.participantId}</td>
+      <td style="color:#888">${a.time||'—'}</td>
+      <td><span class="badge badge-pending">${typeLabel}</span></td>
+      <td>${fmtDate(a.recordedDate||a.date)}</td>
+    </tr>`;
+  }).join('')}
+  </tbody></table>`:'<p style="color:#888;font-size:13px">No attendance entered today yet.</p>'}
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+    <button class="btn btn-primary" onclick="openModal('take-attendance')"><i class="ti ti-clipboard-check"></i> Record attendance</button>
+  </div>
+  <div class="card">
+  <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-users"></i> Meeting status — all participants</div>
+  <table><thead><tr><th>Participant</th><th>Last meeting</th><th>Expires</th><th>Status</th></tr></thead><tbody>
+  ${STATE.participants.map(p=>{
+    const recs=(STATE.attendance||[]).filter(a=>a.participantId===p.id&&a.type==='meeting');
+    recs.sort((a,b)=>new Date(b.recordedDate||b.date)-new Date(a.recordedDate||a.date));
+    const last=recs.length?parseDate(recs[0].recordedDate||recs[0].date):null;
+    const expiry=last?new Date(last):null;if(expiry)expiry.setDate(expiry.getDate()+30);
+    const daysLeft=expiry?daysBetween(TODAY,expiry):null;
+    const ok=daysLeft!==null&&daysLeft>=0;
+    return`<tr>
+      <td>${p.first} ${p.last}</td>
+      <td>${last?fmtDate(last):'—'}</td>
+      <td>${expiry?fmtDate(expiry.toISOString().split('T')[0]):'—'}</td>
+      <td><span class="badge ${ok?daysLeft<=7?'badge-barred':'badge-active':'badge-inactive'}">${ok?daysLeft<=7?'Expiring in '+daysLeft+'d':'Valid':'No meeting'}</span></td>
+    </tr>`;
+  }).join('')}
+  </tbody></table>
+  </div>`;
+}
+
+let selectedAttendee=null;
+let bulkSelected={}; // id -> true
+
+function renderAttendanceModal(){
+  const ps=STATE.participants;
+  return `<div class="modal-title"><i class="ti ti-clipboard-check"></i> Record attendance</div>
+  <div class="tab-bar" style="margin-bottom:12px">
+    <div class="tab active" id="att-tab-single" onclick="switchAttTab('single')">Single person</div>
+    <div class="tab" id="att-tab-bulk" onclick="switchAttTab('bulk')">Bulk / group</div>
+  </div>
+
+  <!-- SINGLE MODE -->
+  <div id="att-single-mode">
+    <div class="form-group"><label class="form-label">Search participant</label>
+    <input type="text" id="att-search" placeholder="Type name..." oninput="filterAttList()"></div>
+    <div id="att-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px;border:0.5px solid rgba(0,0,0,.1);border-radius:8px">
+    ${ps.map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:0.5px solid rgba(0,0,0,.06);cursor:pointer" onclick="selectAttendee('${p.id}')">
+      <div class="avatar" style="width:26px;height:26px;font-size:10px">${p.first[0]}${p.last[0]}</div>
+      <div style="flex:1"><div style="font-size:13px">${p.first} ${p.last}</div>
+      <div style="font-size:11px;color:#888">${p.lockers.map(n=>'#'+n).join(', ')||'No lockers'}</div></div>
+      <span class="badge badge-${p.status}" style="font-size:10px">${p.status}</span>
+    </div>`).join('')}
+    </div>
+    <div id="att-confirm" style="display:none">
+      <div class="alert alert-info" id="att-info"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Attendance type</label>
+        <select id="att-type" onchange="updateAttType()">
+          <option value="work">Work shift</option>
+          <option value="meeting">Meeting</option>
+          <option value="power-lunch">Power Lunch</option>
+          <option value="locker-checkin">Locker check-in only</option>
+        </select></div>
+        <div class="form-group"><label class="form-label" id="att-date-label">Date to record</label>
+        <input type="date" id="att-workdate" value="${todayStr()}"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-sm" onclick="document.getElementById('att-confirm').style.display='none';document.getElementById('att-list').style.display='block'">Back</button>
+        <button class="btn btn-sm btn-primary" onclick="confirmAttendance()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BULK MODE -->
+  <div id="att-bulk-mode" style="display:none">
+    <div class="alert alert-info" style="font-size:12px"><i class="ti ti-info-circle"></i> Search and click names to add them to the list, then submit once for all.</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Attendance type</label>
+      <select id="bulk-type" onchange="updateBulkType()">
+        <option value="work">Work shift</option>
+        <option value="meeting">Meeting</option>
+        <option value="power-lunch">Power Lunch</option>
+        <option value="locker-checkin">Locker check-in only</option>
+      </select></div>
+      <div class="form-group"><label class="form-label" id="bulk-date-label">Date to record</label>
+      <input type="date" id="bulk-date" value="${todayStr()}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Search to add participants</label>
+    <input type="text" id="bulk-search" placeholder="Type name..." oninput="filterBulkList()"></div>
+    <div id="bulk-list" style="max-height:160px;overflow-y:auto;border:0.5px solid rgba(0,0,0,.1);border-radius:8px;margin-bottom:10px">
+    ${ps.map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:0.5px solid rgba(0,0,0,.06);cursor:pointer" onclick="toggleBulkSelect('${p.id}')" id="bulk-row-${p.id}">
+      <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0" id="bulk-chk-${p.id}"></div>
+      <div class="avatar" style="width:24px;height:24px;font-size:10px">${p.first[0]}${p.last[0]}</div>
+      <div style="flex:1;font-size:13px">${p.first} ${p.last}</div>
+      <span class="badge badge-${p.status}" style="font-size:10px">${p.status}</span>
+    </div>`).join('')}
+    </div>
+    <div id="bulk-chips" style="min-height:32px;display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;padding:4px 0;border-bottom:0.5px solid rgba(0,0,0,.08)">
+      <span style="font-size:12px;color:#aaa;padding:4px 0">Selected: none</span>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-sm" onclick="bulkSelected={};renderBulkChips();filterBulkList()">Clear all</button>
+      <button class="btn btn-sm btn-primary" onclick="confirmBulkAttendance()"><i class="ti ti-check"></i> Submit for all selected</button>
+    </div>
+  </div>`;
+}
+
+function switchAttTab(tab){
+  document.getElementById('att-tab-single').className='tab'+(tab==='single'?' active':'');
+  document.getElementById('att-tab-bulk').className='tab'+(tab==='bulk'?' active':'');
+  document.getElementById('att-single-mode').style.display=tab==='single'?'block':'none';
+  document.getElementById('att-bulk-mode').style.display=tab==='bulk'?'block':'none';
+}
+
+function filterAttList(){
+  const q=document.getElementById('att-search').value.toLowerCase();
+  const ps=STATE.participants.filter(p=>`${p.first} ${p.last}`.toLowerCase().includes(q));
+  document.getElementById('att-list').innerHTML=ps.map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:0.5px solid rgba(0,0,0,.06);cursor:pointer" onclick="selectAttendee('${p.id}')">
+    <div class="avatar" style="width:26px;height:26px;font-size:10px">${p.first[0]}${p.last[0]}</div>
+    <div style="flex:1"><div style="font-size:13px">${p.first} ${p.last}</div>
+    <div style="font-size:11px;color:#888">${p.lockers.map(n=>'#'+n).join(', ')||'No lockers'}</div></div>
+    <span class="badge badge-${p.status}" style="font-size:10px">${p.status}</span>
+  </div>`).join('');
+}
+
+function filterBulkList(){
+  const q=(document.getElementById('bulk-search')||{value:''}).value.toLowerCase();
+  const ps=STATE.participants.filter(p=>!q||`${p.first} ${p.last}`.toLowerCase().includes(q));
+  const el=document.getElementById('bulk-list');if(!el)return;
+  el.innerHTML=ps.map(p=>{
+    const sel=bulkSelected[p.id];
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:0.5px solid rgba(0,0,0,.06);cursor:pointer;background:${sel?'#e6f1fb':'transparent'}" onclick="toggleBulkSelect('${p.id}')" id="bulk-row-${p.id}">
+      <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid ${sel?'#378add':'rgba(0,0,0,.25)'};background:${sel?'#378add':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:11px">${sel?'✓':''}</div>
+      <div class="avatar" style="width:24px;height:24px;font-size:10px">${p.first[0]}${p.last[0]}</div>
+      <div style="flex:1;font-size:13px">${p.first} ${p.last}</div>
+      <span class="badge badge-${p.status}" style="font-size:10px">${p.status}</span>
+    </div>`;
+  }).join('');
+}
+
+function toggleBulkSelect(id){
+  if(bulkSelected[id]) delete bulkSelected[id];
+  else bulkSelected[id]=true;
+  filterBulkList();
+  renderBulkChips();
+}
+
+function renderBulkChips(){
+  const el=document.getElementById('bulk-chips');if(!el)return;
+  const ids=Object.keys(bulkSelected);
+  if(!ids.length){el.innerHTML='<span style="font-size:12px;color:#aaa;padding:4px 0">Selected: none</span>';return}
+  el.innerHTML=ids.map(id=>{
+    const p=STATE.participants.find(x=>x.id===id);
+    return p?`<span class="tag" style="background:#e6f1fb;color:#185fa5">${p.first} ${p.last} <span onclick="toggleBulkSelect('${id}')" style="cursor:pointer;margin-left:2px;opacity:.6">×</span></span>`:'';
+  }).join('');
+}
+
+function updateBulkType(){
+  const t=(document.getElementById('bulk-type')||{value:''}).value;
+  const lbl=document.getElementById('bulk-date-label');
+  if(lbl) lbl.textContent=t==='work'?'Work shift date':t==='meeting'?'Meeting date':t==='power-lunch'?'Power Lunch date':'Check-in date';
+}
+
+function selectAttendee(id){
+  selectedAttendee=id;
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return;
+  const lastMeeting=getLastMeetingDate(p.id);
+  const info=`Selected: ${p.first} ${p.last} · ${p.lockers.length} locker(s) · ${p.status}${lastMeeting?' · Last meeting: '+fmtDate(lastMeeting):''}`;
+  document.getElementById('att-info').textContent=info;
+  document.getElementById('att-confirm').style.display='block';
+  document.getElementById('att-list').style.display='none';
+  updateAttType();
+}
+
+function getLastMeetingDate(pid){
+  const recs=(STATE.attendance||[]).filter(a=>a.participantId===pid&&a.type==='meeting');
+  if(!recs.length)return null;
+  recs.sort((a,b)=>new Date(b.recordedDate||b.date)-new Date(a.recordedDate||a.date));
+  return recs[0].recordedDate||recs[0].date;
+}
+
+function updateAttType(){
+  const t=(document.getElementById('att-type')||{value:'work'}).value;
+  const lbl=document.getElementById('att-date-label');
+  if(lbl) lbl.textContent=t==='work'?'Work shift date':t==='meeting'?'Meeting date':t==='power-lunch'?'Power Lunch date':'Check-in date';
+}
+
+function applyAttendanceRecord(p, type, recordedDate){
+  const now=new Date();
+  const timeStr=now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  const rec={
+    participantId:p.id,
+    date:todayStr(),           // wall-clock date EC is entering this (for 5-year archive)
+    recordedDate:recordedDate, // the actual date being credited
+    time:timeStr,
+    type,
+    workDate:type==='work'?recordedDate:null
+  };
+  if(!STATE.attendance)STATE.attendance=[];
+  STATE.attendance.push(rec);
+  if(!STATE.checkins)STATE.checkins=[];
+  STATE.checkins.push({participantId:p.id,date:todayStr(),recordedDate,time:timeStr,type,lockers:p.lockers.slice()});
+
+  if(type==='work'&&recordedDate){
+    if(p.missedDateWarnings){
+      const open=p.missedDateWarnings.find(w=>!w.resolved);
+      if(open){open.resolved=true;}
+    }
+    if(!p.workDates.includes(recordedDate))p.workDates.push(recordedDate);
+    updateWorkStatus(p);
+    applyCredits(p);
+  }
+  if(type==='meeting'){
+    if(!p.meetings)p.meetings=[];
+    p.meetings.push(recordedDate);
+  }
+  if(type==='power-lunch'){
+    if(!p.powerLunches)p.powerLunches=[];
+    p.powerLunches.push(recordedDate);
+  }
+}
+
+function confirmAttendance(){
+  const p=STATE.participants.find(x=>x.id===selectedAttendee);if(!p)return;
+  const type=document.getElementById('att-type').value;
+  const recordedDate=document.getElementById('att-workdate').value||todayStr();
+  applyAttendanceRecord(p,type,recordedDate);
+  checkAutoRules();save();closeModal();STATE.page='attendance';render();
+  toast(`✓ ${type} recorded for ${p.first} ${p.last} — ${fmtDate(recordedDate)}`);
+}
+
+function confirmBulkAttendance(){
+  const ids=Object.keys(bulkSelected);
+  if(!ids.length){alert('No participants selected.');return}
+  const type=(document.getElementById('bulk-type')||{value:'work'}).value;
+  const recordedDate=(document.getElementById('bulk-date')||{value:todayStr()}).value||todayStr();
+  let count=0;
+  ids.forEach(id=>{
+    const p=STATE.participants.find(x=>x.id===id);
+    if(p){applyAttendanceRecord(p,type,recordedDate);count++;}
+  });
+  bulkSelected={};
+  checkAutoRules();save();closeModal();STATE.page='attendance';render();
+  toast(`✓ ${type} recorded for ${count} participant(s) — ${fmtDate(recordedDate)}`);
+}
+
+function recordMissedDate(pid,missedDate){
+  const p=STATE.participants.find(x=>x.id===pid);if(!p)return;
+  if(!p.missedDateWarnings)p.missedDateWarnings=[];
+  const deadline=new Date(TODAY);deadline.setDate(deadline.getDate()+14);
+  p.missedDateWarnings.push({missedDate,deadline:deadline.toISOString().split('T')[0],resolved:false,issuedDate:todayStr()});
+  checkAutoRules();save();toast(`Missed date warning issued to ${p.first}. 2 weeks to select replacement.`);render();
+}
+
+function renderLockers(){
+  const counts={available:STATE.lockers.filter(l=>l.status==='available').length,active:STATE.lockers.filter(l=>l.status==='active').length,barred:STATE.lockers.filter(l=>l.status==='barred').length,broken:STATE.lockers.filter(l=>!l.working).length};
+  return `<div class="metric-grid" style="margin-bottom:16px">
+  <div class="metric"><div class="metric-label">Available</div><div class="metric-value" style="color:#3b6d11">${counts.available}</div></div>
+  <div class="metric"><div class="metric-label">Active</div><div class="metric-value" style="color:#185fa5">${counts.active}</div></div>
+  <div class="metric"><div class="metric-label">Barred</div><div class="metric-value" style="color:#854f0b">${counts.barred}</div></div>
+  <div class="metric"><div class="metric-label">Broken</div><div class="metric-value" style="color:#a32d2d">${counts.broken}</div></div>
+  </div>
+  <div class="card">
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+    <select id="lk-filter" onchange="renderLockerGrid()" style="width:180px"><option value="">All lockers</option><option value="available">Available</option><option value="active">Active/Assigned</option><option value="barred">Barred</option><option value="broken">Broken</option></select>
+    <div class="search-bar" style="flex:1"><i class="ti ti-search"></i><input type="text" id="lk-search" placeholder="Locker number..." oninput="renderLockerGrid()"></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:12px">
+    <span><span style="display:inline-block;width:12px;height:12px;background:#eaf3de;border-radius:3px;border:1px solid #c0dd97"></span> Available</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#e6f1fb;border-radius:3px;border:1px solid #b5d4f4"></span> Active</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#faeeda;border-radius:3px;border:1px solid #fac775"></span> Barred</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#fcebeb;border-radius:3px;border:1px solid #f7c1c1"></span> Broken</span>
+  </div>
+  <div class="locker-grid" id="locker-grid"></div>
+  </div>`;
+}
+
+function renderLockerGrid(){
+  const filter=(document.getElementById('lk-filter')||{value:''}).value;
+  const search=(document.getElementById('lk-search')||{value:''}).value;
+  let lockers=STATE.lockers;
+  if(filter) lockers=lockers.filter(l=>l.status===filter);
+  if(search) lockers=lockers.filter(l=>String(l.number).includes(search));
+  const el=document.getElementById('locker-grid');
+  if(!el)return;
+  el.innerHTML=lockers.slice(0,200).map(l=>{
+    const cls={available:'lc-available',active:'lc-active',barred:'lc-barred',broken:'lc-broken'}[l.status]||'lc-inactive';
+    const p=l.assignedTo?STATE.participants.find(x=>x.id===l.assignedTo):null;
+    return `<div class="locker-cell ${cls}" onclick="showLockerDetail(${l.number})" title="${p?p.first+' '+p.last:l.status}">
+      <span>#${l.number}</span>
+      ${p?`<span style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50px">${p.last}</span>`:''}
+    </div>`;
+  }).join('')+(lockers.length>200?`<div style="color:#888;font-size:12px;padding:8px">...and ${lockers.length-200} more. Use filter to narrow.</div>`:'');
+}
+
+function showLockerDetail(num){
+  const l=STATE.lockers.find(x=>x.number===num);if(!l)return;
+  const p=l.assignedTo?STATE.participants.find(x=>x.id===l.assignedTo):null;
+  alert(`Locker #${num}\nStatus: ${l.status}\nWorking: ${l.working?'Yes':'No'}${l.problem?' ('+l.problem+')':''}\n${p?'Assigned to: '+p.first+' '+p.last+'\nRenewal: '+p.renewalDate:'Unassigned'}`);
+}
+
+function renderRenewals(){
+  const today=TODAY;
+  const ps=STATE.participants.filter(p=>p.lockers.length>0);
+  const soon=ps.filter(p=>{const rd=parseDate(p.renewalDate);return rd&&daysBetween(today,rd)<=14&&daysBetween(today,rd)>=0});
+  const expired=ps.filter(p=>{const rd=parseDate(p.renewalDate);return rd&&rd<today});
+  return `<div class="tab-bar">
+  <div class="tab active" id="tab-soon" onclick="switchRenTab('soon')">Due soon (${soon.length})</div>
+  <div class="tab" id="tab-expired" onclick="switchRenTab('expired')">Expired / non-renewal (${expired.length})</div>
+  </div>
+  <div id="ren-soon">
+  <div class="alert alert-info"><i class="ti ti-info-circle"></i> Renewals must be completed by the 15th. Lockers not renewed go inactive on the 16th with reason "non-renewal given."</div>
+  <div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Lockers</th><th>Renewal date</th><th>Days left</th><th>Actions</th></tr></thead><tbody>
+  ${soon.length?soon.map(p=>{const rd=parseDate(p.renewalDate);const d=daysBetween(today,rd);return`<tr>
+  <td>${p.first} ${p.last}</td><td>${p.lockers.map(n=>`<span class="pill-locker">#${n}</span>`).join('')}</td>
+  <td>${fmtDate(p.renewalDate)}</td>
+  <td><span class="badge ${d<=3?'badge-inactive':d<=7?'badge-barred':'badge-pending'}">${d}d</span></td>
+  <td><button class="btn btn-sm btn-primary" onclick="openModal('renew-modal','${p.id}')">Renew</button></td>
+  </tr>`}).join(''):'<tr><td colspan="5" style="text-align:center;color:#888">No renewals due in 14 days</td></tr>'}
+  </tbody></table></div></div>
+  <div id="ren-expired" style="display:none">
+  <div class="alert alert-danger"><i class="ti ti-alert-triangle"></i> These participants have expired renewals. Check "Hold" to delay releasing a locker (e.g. participant needs to collect belongings).</div>
+  <div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Locker</th><th>Expired</th><th>Hold?</th><th>Actions</th></tr></thead><tbody>
+  ${expired.length?expired.flatMap(p=>p.lockers.map(n=>{const held=(STATE._heldLockers||[]).includes(n);return`<tr>
+  <td>${p.first} ${p.last}</td><td><span class="pill-locker">#${n}</span></td>
+  <td>${fmtDate(p.renewalDate)}</td>
+  <td><input type="checkbox" ${held?'checked':''} onchange="toggleHold(${n},this.checked)"></td>
+  <td><button class="btn btn-sm btn-danger" onclick="releaseLocker(${n},'${p.id}')">Release</button></td>
+  </tr>`})).join(''):'<tr><td colspan="5" style="text-align:center;color:#888">No expired renewals</td></tr>'}
+  </tbody></table></div></div>`;
+}
+
+function switchRenTab(t){
+  document.getElementById('tab-soon').className='tab'+(t==='soon'?' active':'');
+  document.getElementById('tab-expired').className='tab'+(t==='expired'?' active':'');
+  document.getElementById('ren-soon').style.display=t==='soon'?'block':'none';
+  document.getElementById('ren-expired').style.display=t==='expired'?'block':'none';
+}
+
+function toggleHold(n,held){
+  if(!STATE._heldLockers)STATE._heldLockers=[];
+  if(held){if(!STATE._heldLockers.includes(n))STATE._heldLockers.push(n)}
+  else STATE._heldLockers=STATE._heldLockers.filter(x=>x!==n);
+  save();
+}
+
+function releaseLocker(lockerNum,participantId){
+  if(!confirm(`Release locker #${lockerNum} and return to available inventory?`))return;
+  const l=STATE.lockers.find(x=>x.number===lockerNum);
+  if(l){l.status='available';l.assignedTo=null}
+  const p=STATE.participants.find(x=>x.id===participantId);
+  if(p){p.lockers=p.lockers.filter(n=>n!==lockerNum);if(p.oldLockers)p.oldLockers.push(lockerNum)}
+  if(STATE._heldLockers)STATE._heldLockers=STATE._heldLockers.filter(n=>n!==lockerNum);
+  checkAutoRules();save();render();
+}
+
+function renderRenewModal(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return'';
+  const nextMonth=new Date(TODAY);nextMonth.setMonth(nextMonth.getMonth()+1);
+  const nextRenewal=`${nextMonth.getFullYear()}-${String(nextMonth.getMonth()+1).padStart(2,'0')}-15`;
+  return `<div class="modal-title">Renew — ${p.first} ${p.last}</div>
+  <div class="alert alert-info"><i class="ti ti-info-circle"></i> Current renewal: ${fmtDate(p.renewalDate)}.</div>
+  <div class="form-group"><label class="form-label">New renewal date</label><input type="date" id="ren-date" value="${nextRenewal}"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-primary" onclick="doRenew('${id}')">Confirm renewal</button>
+  </div>`;
+}
+
+function doRenew(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return;
+  const d=document.getElementById('ren-date').value;
+  if(!d){alert('Select a date');return}
+  p.renewalDate=d;
+  checkAutoRules();save();closeModal();render();
+}
+
+function renderBars(){
+  const allBars=STATE.participants.flatMap(p=>(p.bars||[]).map(b=>({...b,participantId:p.id,name:`${p.first} ${p.last}`})));
+  const activeBars=allBars.filter(b=>b.permanent||(parseDate(b.endDate)>=TODAY));
+  const histBars=allBars.filter(b=>!b.permanent&&parseDate(b.endDate)<TODAY);
+  return `<div class="tab-bar">
+  <div class="tab active" id="tab-active-bars" onclick="switchBarTab('active')">Active bars (${activeBars.length})</div>
+  <div class="tab" id="tab-hist-bars" onclick="switchBarTab('hist')">History (${histBars.length})</div>
+  </div>
+  <div id="bars-active">
+  ${activeBars.length?`<div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Type</th><th>Reason</th><th>Issued</th><th>Until</th></tr></thead><tbody>
+  ${activeBars.map(b=>`<tr><td><a onclick="viewParticipant('${b.participantId}')" style="cursor:pointer;color:#378add">${b.name}</a></td>
+  <td><span class="badge ${b.permanent?'badge-inactive':'badge-barred'}">${b.permanent?'Permanent':'Temporary'}</span></td>
+  <td>${b.reason}</td><td>${fmtDate(b.startDate)}</td><td>${b.permanent?'Forever':fmtDate(b.endDate)}</td></tr>`).join('')}
+  </tbody></table></div>`:'<div class="card"><p style="color:#888;font-size:13px">No active bars.</p></div>'}
+  </div>
+  <div id="bars-hist" style="display:none">
+  ${histBars.length?`<div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Reason</th><th>Period</th></tr></thead><tbody>
+  ${histBars.map(b=>`<tr><td>${b.name}</td><td>${b.reason}</td><td>${fmtDate(b.startDate)} – ${fmtDate(b.endDate)}</td></tr>`).join('')}
+  </tbody></table></div>`:'<div class="card"><p style="color:#888;font-size:13px">No bar history.</p></div>'}
+  </div>`;
+}
+
+function switchBarTab(t){
+  document.getElementById('tab-active-bars').className='tab'+(t==='active'?' active':'');
+  document.getElementById('tab-hist-bars').className='tab'+(t==='hist'?' active':'');
+  document.getElementById('bars-active').style.display=t==='active'?'block':'none';
+  document.getElementById('bars-hist').style.display=t==='hist'?'block':'none';
+}
+
+function openBarModal(id){openModal('bar-modal',id)}
+
+function renderBarModal(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return'';
+  const end30=new Date(TODAY);end30.setDate(end30.getDate()+30);
+  const end30str=end30.toISOString().split('T')[0];
+  return `<div class="modal-title"><i class="ti ti-ban"></i> Issue bar — ${p.first} ${p.last}</div>
+  <div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> Temporary bars end after 30 days. Permanent bars require EC authorization and restrict access forever.</div>
+  <div class="form-group"><label class="form-label">Bar type</label>
+  <select id="bar-type" onchange="toggleBarDate()"><option value="temporary">Temporary (30 days)</option><option value="permanent">Permanent</option></select></div>
+  <div class="form-group" id="bar-end-row"><label class="form-label">End date</label><input type="date" id="bar-end" value="${end30str}"></div>
+  <div class="form-group"><label class="form-label">Reason</label><input type="text" id="bar-reason" placeholder="Rule violation, missed dates, etc."></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-danger" onclick="doIssueBar('${id}')">Issue bar</button>
+  </div>`;
+}
+
+function toggleBarDate(){
+  document.getElementById('bar-end-row').style.display=document.getElementById('bar-type').value==='permanent'?'none':'block';
+}
+
+function doIssueBar(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return;
+  const type=document.getElementById('bar-type').value;
+  const reason=document.getElementById('bar-reason').value.trim();
+  if(!reason){alert('Please enter a reason.');return}
+  const end=type==='temporary'?document.getElementById('bar-end').value:null;
+  if(!p.bars)p.bars=[];
+  p.bars.push({id:'b'+Date.now(),startDate:todayStr(),endDate:end,permanent:type==='permanent',reason});
+  p.status='barred';p.statusReason='Active bar: '+reason;
+  save();closeModal();render();
+}
+
+function renderMessages(){
+  const msgs=STATE.messages;
+  const grouped={};
+  msgs.forEach(m=>{if(!grouped[m.participantId])grouped[m.participantId]=[];grouped[m.participantId].push(m)});
+  const pIds=Object.keys(grouped);
+  const activeId=STATE._activeThread||pIds[0];
+
+  return `<div style="display:grid;grid-template-columns:220px 1fr;gap:0;height:calc(100vh - 120px);border:0.5px solid rgba(0,0,0,.12);border-radius:12px;overflow:hidden">
+  <div style="border-right:0.5px solid rgba(0,0,0,.12);overflow-y:auto;background:#f5f5f3">
+    <div style="padding:10px;font-size:11px;font-weight:500;color:#888">Conversations</div>
+    ${pIds.map(pid=>{const p=STATE.participants.find(x=>x.id===pid);const unread=grouped[pid].filter(m=>!m.read&&m.fromRole==='participant').length;return`
+    <div style="padding:10px 14px;cursor:pointer;background:${pid===activeId?'#fff':'transparent'};border-bottom:0.5px solid rgba(0,0,0,.08)" onclick="STATE._activeThread='${pid}';renderContent()">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="avatar" style="width:28px;height:28px;font-size:11px">${p?p.first[0]+p.last[0]:'?'}</div>
+        <div style="flex:1"><div style="font-size:13px">${p?p.first+' '+p.last:pid}</div></div>
+        ${unread?`<span class="badge badge-pending">${unread}</span>`:''}
+      </div>
+    </div>`}).join('')}
+    ${pIds.length===0?'<div style="padding:16px;font-size:13px;color:#888">No messages yet.</div>':''}
+    <div style="padding:10px;border-top:0.5px solid rgba(0,0,0,.12)">
+      <button class="btn btn-sm btn-primary" style="width:100%" onclick="openNewMessage()"><i class="ti ti-send"></i> New message</button>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column">
+    ${activeId&&grouped[activeId]?`
+    <div style="padding:12px 16px;border-bottom:0.5px solid rgba(0,0,0,.12);font-weight:500;font-size:14px">
+      ${(()=>{const p=STATE.participants.find(x=>x.id===activeId);return p?p.first+' '+p.last:activeId})()}
+    </div>
+    <div class="chat-area" style="flex:1;margin:12px;max-height:none">
+      ${grouped[activeId].map(m=>`<div>
+        <div class="chat-msg ${m.fromRole==='ec'?'chat-from-ec':'chat-from-p'}">${m.text}</div>
+        <div class="chat-meta" style="text-align:${m.fromRole==='ec'?'right':'left'}">${fmtDate(m.date)} · ${m.fromRole==='ec'?'EC':'Participant'}</div>
+      </div>`).join('')}
+    </div>
+    <div style="padding:12px 16px;border-top:0.5px solid rgba(0,0,0,.12);display:flex;gap:8px">
+      <input type="text" id="msg-input" placeholder="Type a message..." style="flex:1" onkeydown="if(event.key==='Enter')sendMessage('${activeId}')">
+      <button class="btn btn-primary btn-sm" onclick="sendMessage('${activeId}')"><i class="ti ti-send"></i></button>
+    </div>`:'<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#888;font-size:13px">Select a conversation or start a new one</div>'}
+  </div></div>`;
+}
+
+function sendMessage(pid){
+  const input=document.getElementById('msg-input');
+  if(!input||!input.value.trim())return;
+  STATE.messages.push({id:'m'+Date.now(),participantId:pid,text:input.value.trim(),date:todayStr(),fromRole:STATE.currentUser.role,read:true});
+  save();renderContent();
+}
+
+function openNewMessage(){
+  const email=prompt('Enter participant email:');
+  if(!email)return;
+  const p=STATE.participants.find(x=>x.email.toLowerCase()===email.toLowerCase());
+  if(!p){alert('Participant not found.');return}
+  STATE._activeThread=p.id;
+  if(!STATE.messages.find(m=>m.participantId===p.id)){
+    STATE.messages.push({id:'m'+Date.now(),participantId:p.id,text:'Hello! This is a message from your EC.',date:todayStr(),fromRole:'ec',read:true});
+  }
+  save();renderContent();
+}
+
+function renderAssignLockerModal(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return'';
+  const avail=STATE.lockers.filter(l=>l.status==='available'&&l.working);
+  return `<div class="modal-title">Assign locker — ${p.first} ${p.last}</div>
+  <div class="alert alert-info">Currently has ${p.lockers.length} locker(s): ${p.lockers.map(n=>'#'+n).join(', ')||'none'}. Max 3.</div>
+  ${p.lockers.length>=3?`<div class="alert alert-danger">Participant already has 3 lockers (maximum).</div><button class="btn btn-sm" onclick="closeModal()">Close</button>`:`
+  <div class="form-group"><label class="form-label">Select locker number</label>
+  <select id="locker-pick"><option value="">-- choose --</option>${avail.slice(0,100).map(l=>`<option value="${l.number}">#${l.number}</option>`).join('')}</select></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-primary" onclick="doAssignLocker('${id}')">Assign</button>
+  </div>`}`;
+}
+
+function doAssignLocker(id){
+  const num=parseInt(document.getElementById('locker-pick').value);
+  if(!num){alert('Select a locker');return}
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return;
+  const l=STATE.lockers.find(x=>x.number===num);if(!l)return;
+  if(l.status!=='available'){alert('Locker not available');return}
+  l.status='active';l.assignedTo=id;
+  p.lockers.push(num);
+  checkAutoRules();save();closeModal();openModal('view-participant',id);
+}
+
+function renderMyProfile(){
+  const p=STATE.participants.find(x=>x.id===STATE.currentUser.id);if(!p)return'<p>Profile not found.</p>';
+  const today=TODAY;
+  const curMonth=monthKey(today);
+  const mwd=p.workDates.filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===curMonth});
+  const rd=parseDate(p.renewalDate);
+  const daysUntil=rd?daysBetween(today,rd):null;
+  const activeBars=(p.bars||[]).filter(b=>b.permanent||(parseDate(b.endDate)>=today));
+  return `<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+  <div class="avatar" style="width:52px;height:52px;font-size:20px">${p.first[0]}${p.last[0]}</div>
+  <div><div style="font-size:18px;font-weight:500">${p.first} ${p.last}</div>
+  <div style="font-size:13px;color:#888">${p.email}</div>
+  <span class="badge badge-${p.status}" style="margin-top:4px">${p.status}</span></div></div>
+  ${activeBars.length>0?`<div class="alert alert-danger"><i class="ti ti-ban"></i> You have an active bar. Contact your EC.</div>`:''}
+  ${p.statusReason?`<div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> ${p.statusReason}</div>`:''}
+  ${daysUntil!==null&&daysUntil<=14&&daysUntil>=0?`<div class="alert alert-warning"><i class="ti ti-calendar"></i> Renewal due in ${daysUntil} days (${fmtDate(p.renewalDate)})</div>`:''}
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+  <div class="metric"><div class="metric-label">Your lockers</div><div class="metric-value">${p.lockers.length}</div>${p.lockers.map(n=>`<span class="tag">#${n}</span>`).join('')}</div>
+  <div class="metric"><div class="metric-label">Work this month</div><div class="metric-value" style="color:${mwd.length>=p.lockers.length?'#3b6d11':'#e24b4a'}">${mwd.length}/${p.lockers.length}</div></div>
+  <div class="metric"><div class="metric-label">Credits</div><div class="metric-value">${p.credits||0}</div></div>
+  </div></div>
+  <div class="card">
+  <div style="font-size:13px;font-weight:500;margin-bottom:12px">Compliance checklist</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+  <div style="display:flex;align-items:center;gap:10px"><i class="ti ti-${p.meetingStatus?'circle-check':'circle-x'}" style="color:${p.meetingStatus?'#3b6d11':'#e24b4a'};font-size:20px"></i><div><div style="font-size:13px">Monthly meeting</div><div style="font-size:11px;color:#888">${p.meetingStatus?'Attended this month':'Not yet attended'}</div></div></div>
+  <div style="display:flex;align-items:center;gap:10px"><i class="ti ti-${p.plStatus?'circle-check':'circle-x'}" style="color:${p.plStatus?'#3b6d11':'#e24b4a'};font-size:20px"></i><div><div style="font-size:13px">Power Lunch ${today.getFullYear()}</div><div style="font-size:11px;color:#888">${p.plStatus?'Completed':'Not yet completed this year'}</div></div></div>
+  <div style="display:flex;align-items:center;gap:10px"><i class="ti ti-${mwd.length>=p.lockers.length?'circle-check':'circle-x'}" style="color:${mwd.length>=p.lockers.length?'#3b6d11':'#e24b4a'};font-size:20px"></i><div><div style="font-size:13px">Work dates this month</div><div style="font-size:11px;color:#888">${mwd.length} of ${p.lockers.length} completed</div></div></div>
+  </div></div>`;
+}
+
+function renderMySchedule(){
+  const p=STATE.participants.find(x=>x.id===STATE.currentUser.id);if(!p)return'<p>Not found.</p>';
+  return `<div class="card" style="margin-bottom:12px">
+  <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-calendar"></i> Your schedule</div>
+  <div style="display:flex;flex-direction:column;gap:12px">
+  <div><div style="font-size:12px;color:#888;margin-bottom:4px">Renewal date</div><div style="font-size:15px;font-weight:500">${fmtDate(p.renewalDate)}</div></div>
+  <div class="divider"></div>
+  <div><div style="font-size:12px;color:#888;margin-bottom:4px">Work dates</div>${p.workDates.length?p.workDates.map(d=>`<span class="tag"><i class="ti ti-tool" style="font-size:12px"></i>${fmtDate(d)}</span>`).join(''):'<span style="color:#888;font-size:12px">None scheduled</span>'}</div>
+  <div class="divider"></div>
+  <div><div style="font-size:12px;color:#888;margin-bottom:4px">Meeting dates</div>${(p.meetings||[]).length?(p.meetings||[]).map(d=>`<span class="tag"><i class="ti ti-users" style="font-size:12px"></i>${fmtDate(d)}</span>`).join(''):'<span style="color:#888;font-size:12px">None recorded</span>'}</div>
+  <div class="divider"></div>
+  <div><div style="font-size:12px;color:#888;margin-bottom:4px">Power Lunch dates</div>${(p.powerLunches||[]).filter(d=>d!=='9/9/9999').length?(p.powerLunches||[]).filter(d=>d!=='9/9/9999').map(d=>`<span class="tag"><i class="ti ti-star" style="font-size:12px"></i>${fmtDate(d)}</span>`).join(''):'<span style="color:#888;font-size:12px">None recorded</span>'}</div>
+  </div></div>
+  <div class="card">
+  <div style="font-size:13px;font-weight:500;margin-bottom:8px"><i class="ti ti-message-circle"></i> Message your EC</div>
+  <div class="form-group"><textarea id="p-msg" rows="3" placeholder="Ask a question, request a schedule change, let them know you're running late..." style="resize:none"></textarea></div>
+  <button class="btn btn-primary btn-sm" onclick="sendParticipantMessage()"><i class="ti ti-send"></i> Send message</button>
+  </div>`;
+}
+
+function sendParticipantMessage(){
+  const text=document.getElementById('p-msg').value.trim();
+  if(!text){alert('Please enter a message.');return}
+  STATE.messages.push({id:'m'+Date.now(),participantId:STATE.currentUser.id,text,date:todayStr(),fromRole:'participant',read:false});
+  document.getElementById('p-msg').value='';
+  save();alert('Message sent to your EC.');
+}
+
+function renderMissedDateModal(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return'';
+  const curMonth=monthKey(TODAY);
+  const mwd=p.workDates.filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===curMonth});
+  const deadline=new Date(TODAY);deadline.setDate(deadline.getDate()+14);
+  return `<div class="modal-title"><i class="ti ti-alert-triangle"></i> Mark missed work date — ${p.first} ${p.last}</div>
+  <div class="alert alert-warning"><i class="ti ti-info-circle"></i> This issues a 2-week warning. If no replacement date is chosen within 14 days, a 30-day bar is automatically applied.</div>
+  <div class="form-group"><label class="form-label">Missed work date</label><input type="date" id="missed-date-input" value="${todayStr()}"></div>
+  <p style="font-size:12px;color:#888">Replacement deadline: <b>${fmtDate(deadline.toISOString().split('T')[0])}</b></p>
+  ${(p.missedDateWarnings||[]).filter(w=>!w.resolved).length?`<div class="alert alert-danger">Already has an open missed-date warning. Resolve before issuing another.</div>`:''}
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-danger" onclick="doMissedDate('${id}')">Issue warning</button>
+  </div>`;
+}
+
+function doMissedDate(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return;
+  if((p.missedDateWarnings||[]).some(w=>!w.resolved)){alert('Resolve existing warning first.');return}
+  const d=document.getElementById('missed-date-input').value;
+  recordMissedDate(id,d);
+  closeModal();
+}
+
+function renderAdjustCreditsModal(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return'';
+  return `<div class="modal-title"><i class="ti ti-coin"></i> Adjust credits — ${p.first} ${p.last}</div>
+  <div class="alert alert-info"><i class="ti ti-info-circle"></i> Credits are earned when extra work shifts are completed beyond locker count. They cover a deficit month (1 credit = 1 missed work date). Cannot exceed available balance.</div>
+  <div class="metric" style="margin-bottom:14px"><div class="metric-label">Current credits</div><div class="metric-value">${p.credits||0}</div></div>
+  <div class="form-group"><label class="form-label">Adjustment (positive = add, negative = deduct)</label><input type="number" id="credit-adj" value="0" min="-${p.credits||0}"></div>
+  <div class="form-group"><label class="form-label">Reason</label><input type="text" id="credit-reason" placeholder="Extra shift worked, correction, etc."></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-primary" onclick="doAdjustCredit('${id}')">Apply</button>
+  </div>`;
+}
+
+function doAdjustCredit(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return;
+  const adj=parseInt(document.getElementById('credit-adj').value)||0;
+  const reason=document.getElementById('credit-reason').value.trim();
+  const newVal=(p.credits||0)+adj;
+  if(newVal<0){alert('Credits cannot go below 0.');return}
+  p.credits=newVal;
+  if(!p.creditLog)p.creditLog=[];
+  p.creditLog.push({date:todayStr(),adj,reason,balance:newVal});
+  checkAutoRules();save();closeModal();toast(`Credits updated: ${p.first} now has ${p.credits}`);
+}
+
+function renderCheckinLogModal(id){
+  const p=STATE.participants.find(x=>x.id===id);if(!p)return'';
+  const logs=(STATE.checkins||[]).filter(c=>c.participantId===id).slice().reverse().slice(0,30);
+  return `<div class="modal-title"><i class="ti ti-history"></i> Check-in log — ${p.first} ${p.last}</div>
+  ${logs.length?`<div class="checkin-log">
+  ${logs.map(c=>`<div class="checkin-entry">
+    <span class="timeline-dot" style="background:${checkinColor(c.type)}"></span>
+    <div style="flex:1"><span style="font-weight:500">${fmtDate(c.date)}</span> at ${c.time||'—'}</div>
+    <span class="badge badge-pending" style="font-size:10px">${c.type}</span>
+    ${c.workDate?`<span style="font-size:11px;color:#888">→ ${fmtDate(c.workDate)}</span>`:''}
+  </div>`).join('')}
+  </div>`:`<p style="color:#888;font-size:13px">No check-ins recorded yet.</p>`}
+  <div style="text-align:right;margin-top:14px"><button class="btn btn-sm" onclick="closeModal()">Close</button></div>`;
+}
+
+function renderBroadcastModal(){
+  return `<div class="modal-title"><i class="ti ti-speakerphone"></i> Broadcast message to all participants</div>
+  <div class="alert alert-info"><i class="ti ti-info-circle"></i> This sends a message to every participant's inbox.</div>
+  <div class="form-group"><label class="form-label">Message</label><textarea id="broadcast-msg" rows="4" placeholder="Type your message..." style="resize:none"></textarea></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-primary" onclick="doBroadcast()"><i class="ti ti-send"></i> Send to all</button>
+  </div>`;
+}
+
+function doBroadcast(){
+  const text=document.getElementById('broadcast-msg').value.trim();
+  if(!text){alert('Enter a message.');return}
+  STATE.participants.forEach(p=>{
+    STATE.messages.push({id:'m'+Date.now()+p.id,participantId:p.id,text,date:todayStr(),fromRole:'ec',read:false,broadcast:true});
+  });
+  save();closeModal();toast(`Broadcast sent to ${STATE.participants.length} participants.`);
+}
+
+function renderMarkBrokenModal(){
+  const workingLockers=STATE.lockers.filter(l=>l.working&&l.status==='available');
+  return `<div class="modal-title"><i class="ti ti-tool"></i> Report / fix locker issue</div>
+  <div class="form-group"><label class="form-label">Locker number</label><input type="number" id="broken-num" min="1" max="400" placeholder="e.g. 14"></div>
+  <div class="form-group"><label class="form-label">Action</label>
+  <select id="broken-action"><option value="mark-broken">Mark as broken</option><option value="mark-fixed">Mark as fixed/working</option></select></div>
+  <div class="form-group" id="broken-problem-row"><label class="form-label">Problem description</label><input type="text" id="broken-problem" placeholder="e.g. broken latch"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  <button class="btn btn-sm btn-primary" onclick="doLockerIssue()">Submit</button>
+  </div>`;
+}
+
+function doLockerIssue(){
+  const num=parseInt(document.getElementById('broken-num').value);
+  const action=document.getElementById('broken-action').value;
+  const problem=document.getElementById('broken-problem')?document.getElementById('broken-problem').value:'';
+  const l=STATE.lockers.find(x=>x.number===num);
+  if(!l){alert('Locker not found.');return}
+  if(action==='mark-broken'){l.working=false;l.problem=problem||'reported broken';if(!l.assignedTo)l.status='broken'}
+  else{l.working=true;l.problem='';if(l.status==='broken')l.status='available'}
+  save();closeModal();render();toast(`Locker #${num} updated.`);
+}
+
+function renderUnassignLockerModal(lockerId){
+  const l=STATE.lockers.find(x=>x.number===parseInt(lockerId));if(!l)return'';
+  const p=l.assignedTo?STATE.participants.find(x=>x.id===l.assignedTo):null;
+  return `<div class="modal-title">Unassign locker #${lockerId}</div>
+  ${p?`<div class="alert alert-warning">This locker is assigned to <b>${p.first} ${p.last}</b>. Unassigning will release it to available inventory.</div>`:'<div class="alert alert-info">Locker is not assigned.</div>'}
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+  <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+  ${p?`<button class="btn btn-sm btn-danger" onclick="releaseLocker(${lockerId},'${p.id}')">Unassign & release</button>`:''}
+  </div>`;
+}
+
+function renderReports(){
+  const today=TODAY;
+  const curMonth=monthKey(today);
+  const ps=STATE.participants;
+  const totalCheckins=(STATE.checkins||[]).length;
+  const thisMonthCheckins=(STATE.checkins||[]).filter(c=>monthKey(parseDate(c.date)||today)===curMonth).length;
+  const workCheckins=(STATE.checkins||[]).filter(c=>c.type==='work').length;
+  const meetCheckins=(STATE.checkins||[]).filter(c=>c.type==='meeting').length;
+  const plCheckins=(STATE.checkins||[]).filter(c=>c.type==='power-lunch').length;
+  const avgCredits=ps.length?Math.round(ps.reduce((s,p)=>s+(p.credits||0),0)/ps.length):0;
+  const withWarnings=ps.filter(p=>(p.missedDateWarnings||[]).some(w=>!w.resolved));
+  const recentCheckins=(STATE.checkins||[]).slice().reverse().slice(0,15);
+  const barsTotal=ps.reduce((s,p)=>s+(p.bars||[]).length,0);
+  const activeBars=ps.reduce((s,p)=>s+(p.bars||[]).filter(b=>b.permanent||(parseDate(b.endDate)>=today)).length,0);
+
+  return `<div class="metric-grid" style="margin-bottom:20px">
+  <div class="metric"><div class="metric-label">Total check-ins</div><div class="metric-value">${totalCheckins}</div></div>
+  <div class="metric"><div class="metric-label">This month</div><div class="metric-value">${thisMonthCheckins}</div></div>
+  <div class="metric"><div class="metric-label">Work shifts logged</div><div class="metric-value">${workCheckins}</div></div>
+  <div class="metric"><div class="metric-label">Meetings attended</div><div class="metric-value">${meetCheckins}</div></div>
+  <div class="metric"><div class="metric-label">Power lunches</div><div class="metric-value">${plCheckins}</div></div>
+  <div class="metric"><div class="metric-label">Avg credits/person</div><div class="metric-value">${avgCredits}</div></div>
+  <div class="metric"><div class="metric-label">Total bars issued</div><div class="metric-value">${barsTotal}</div></div>
+  <div class="metric"><div class="metric-label">Active bars</div><div class="metric-value" style="color:#a32d2d">${activeBars}</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+  <div class="card">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px"><i class="ti ti-alert-triangle" style="color:#ba7517"></i> Open missed-date warnings (${withWarnings.length})</div>
+    ${withWarnings.length?withWarnings.map(p=>{
+      const w=p.missedDateWarnings.find(x=>!x.resolved);
+      const dl=parseDate(w.deadline);
+      const days=dl?daysBetween(today,dl):0;
+      return `<div class="missed-warning" style="margin-bottom:6px">
+        <div style="font-weight:500">${p.first} ${p.last}</div>
+        <div style="font-size:12px">Missed: ${fmtDate(w.missedDate)} · Deadline: ${fmtDate(w.deadline)} (${days}d left)</div>
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="recordMissedDate('${p.id}','${w.missedDate}')">Extend</button>
+          <button class="btn btn-sm btn-danger" onclick="forceBarParticipant('${p.id}')">Bar now</button>
+        </div>
+      </div>`;
+    }).join(''):'<p style="color:#888;font-size:13px">No open warnings.</p>'}
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px"><i class="ti ti-history"></i> Recent check-ins</div>
+    <div class="checkin-log">
+    ${recentCheckins.length?recentCheckins.map(c=>{const p=STATE.participants.find(x=>x.id===c.participantId);return`
+      <div class="checkin-entry">
+        <span class="timeline-dot" style="background:${checkinColor(c.type)}"></span>
+        <div style="flex:1"><b>${p?p.first+' '+p.last:c.participantId}</b> · ${fmtDate(c.date)} ${c.time||''}</div>
+        <span class="badge badge-pending" style="font-size:10px">${c.type}</span>
+      </div>`}).join(''):'<p style="color:#888;font-size:13px">No check-ins yet.</p>'}
+    </div>
+  </div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-users"></i> Participant compliance snapshot</div>
+    <table><thead><tr><th>Name</th><th>Status</th><th>Work this month</th><th>Credits</th><th>Meeting</th><th>Power Lunch</th><th>Warnings</th></tr></thead><tbody>
+    ${ps.map(p=>{
+      const mwd=p.workDates.filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===curMonth}).length;
+      const hasWarn=(p.missedDateWarnings||[]).some(w=>!w.resolved);
+      return`<tr>
+      <td><span class="status-dot dot-${p.status}"></span>${p.first} ${p.last}</td>
+      <td><span class="badge badge-${p.status}">${p.status}</span></td>
+      <td style="color:${mwd>=p.lockers.length?'#3b6d11':'#e24b4a'}">${mwd}/${p.lockers.length}</td>
+      <td>${p.credits||0}</td>
+      <td>${p.meetingStatus?'✓':'✗'}</td>
+      <td>${p.plStatus?'✓':'✗'}</td>
+      <td>${hasWarn?'<span class="warn-badge"><i class="ti ti-alert-triangle"></i> Open</span>':'—'}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>
+  </div>`;
+}
+
+function renderEcMgmt(){
+  return `<div class="card" style="margin-bottom:16px">
+  <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-shield"></i> EC accounts</div>
+  <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>
+  ${STATE.users.filter(u=>u.role==='ec').map(u=>`<tr>
+    <td>${u.name}</td><td>${u.email}</td><td><span class="badge badge-pending">EC</span></td>
+    <td><button class="btn btn-sm btn-danger" onclick="removeEC('${u.id}')"><i class="ti ti-trash"></i></button></td>
+  </tr>`).join('')}
+  </tbody></table>
+  <div class="divider"></div>
+  <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add new EC</div>
+  <div class="form-row"><div class="form-group"><label class="form-label">Name</label><input type="text" id="new-ec-name"></div>
+  <div class="form-group"><label class="form-label">Email</label><input type="email" id="new-ec-email"></div></div>
+  <div class="form-group"><label class="form-label">Password</label><input type="password" id="new-ec-pw"></div>
+  <button class="btn btn-primary btn-sm" onclick="addEC()"><i class="ti ti-plus"></i> Add EC</button>
+  </div>
+  <div class="card">
+  <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-settings"></i> System actions</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="if(confirm('Reset meeting status for all participants (simulate month change)?')){STATE.participants.forEach(p=>p.meetingStatus=false);save();render();toast('Meeting status reset.');}"><i class="ti ti-refresh"></i> Reset monthly meeting status</button>
+    <button class="btn btn-sm" onclick="if(confirm('Check and auto-expire all bars past their end date?')){expireOldBars();toast('Bars checked.');}"><i class="ti ti-ban"></i> Expire old bars</button>
+    <button class="btn btn-sm btn-danger" onclick="if(confirm('DANGER: Reset ALL app data to demo defaults?')){localStorage.removeItem('lockerlink_state');location.reload();}"><i class="ti ti-trash"></i> Reset to demo data</button>
+  </div>
+  </div>`;
+}
+
+function addEC(){
+  const name=document.getElementById('new-ec-name').value.trim();
+  const email=document.getElementById('new-ec-email').value.trim();
+  const pw=document.getElementById('new-ec-pw').value;
+  if(!name||!email||!pw){alert('Fill all fields.');return}
+  if(STATE.users.find(u=>u.email.toLowerCase()===email.toLowerCase())){alert('Email already exists.');return}
+  STATE.users.push({id:'ec'+Date.now(),role:'ec',name,email,password:pw});
+  save();render();toast('EC account added.');
+}
+
+function removeEC(id){
+  if(id===STATE.currentUser?.id){alert("Can't remove your own account.");return}
+  if(!confirm('Remove this EC account?'))return;
+  STATE.users=STATE.users.filter(u=>u.id!==id);
+  save();render();toast('EC removed.');
+}
+
+function expireOldBars(){
+  const today=TODAY;
+  STATE.participants.forEach(p=>{
+    if(p.bars){
+      p.bars.forEach(b=>{
+        if(!b.permanent&&parseDate(b.endDate)<today) b.expired=true;
+      });
+    }
+  });
+  checkAutoRules();save();render();
+}
+
+function checkinColor(type){
+  return {work:'#639922',meeting:'#185fa5','power-lunch':'#854f0b','locker-checkin':'#888'}[type]||'#888';
+}
+
+function forceBarParticipant(id){
+  const p=STATE.participants.find(x=>x.id===id);
+  if(!p)return;
+  issueAutoBar(p,'Missed work date 2-week deadline exceeded');
+  checkAutoRules();save();render();toast('Bar issued.');
+}
+
+loadState();
+monthlyReset();
+checkAutoRules();
+render();
+</script>
+</body>
+</html>
