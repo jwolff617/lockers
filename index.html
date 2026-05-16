@@ -118,56 +118,66 @@ tr:hover td{background:#f5f5f3}
 </div>
 <script>
 // ── SYSTEM DATE (single source of truth for all time logic) ────────────────
-const SYS_DATE = new Date('2025-08-08'); // Change this to go-live date
+const SYS_DATE = new Date('2026-05-16'); // Change this to go-live date
 const todayStr = () => SYS_DATE.toISOString().split('T')[0];
 
 // ── DATE HELPERS ───────────────────────────────────────────────────────────
-function fmtDate(d){if(!d||d==='9/9/9999')return'—';try{const dt=new Date(d);if(isNaN(dt))return String(d);return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch{return String(d)}}
-function parseDate(s){if(!s||s==='9/9/9999')return null;const d=new Date(s);return isNaN(d)?null:d}
+function fmtDate(d){if(!d||d==='9/9/9999')return'—';try{const dt=parseDate(d);if(!dt)return String(d);return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}catch{return String(d)}}
+function parseDate(s){
+  if(!s||s==='9/9/9999')return null;
+  // For YYYY-MM-DD strings, parse as LOCAL midnight (not UTC) to avoid timezone day-shift.
+  // new Date('2026-05-09') = UTC midnight = May 8 in US timezones — wrong.
+  // We split manually so it stays in local time.
+  if(typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)){
+    const[y,m,day]=s.split('-').map(Number);
+    const dt=new Date(y,m-1,day); // local midnight, no timezone shift
+    return isNaN(dt)?null:dt;
+  }
+  if(s instanceof Date)return isNaN(s)?null:s;
+  const d=new Date(s);return isNaN(d)?null:d;
+}
 function daysBetween(a,b){return Math.round((b-a)/(1000*60*60*24))}
 function monthKey(d){return d.getFullYear()+'-'+(d.getMonth()+1)}
 function monthLabel(mk){const[y,m]=mk.split('-');return new Date(+y,+m-1,1).toLocaleString('en-US',{month:'long',year:'numeric'})}
-function addDays(base,n){const d=new Date(base);d.setDate(d.getDate()+n);return d.toISOString().split('T')[0]}
+function addDays(base,n){const d=parseDate(base)||new Date(base);d.setDate(d.getDate()+n);const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dy}
 function ciColor(t){return{work:'#639922',meeting:'#185fa5','power-lunch':'#854f0b','locker-checkin':'#888'}[t]||'#888'}
 function toast(msg,dur){let t=document.getElementById('_t');if(!t){t=document.createElement('div');t.id='_t';t.className='toast';document.body.appendChild(t)}t.textContent=msg;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),dur||3200)}
 
 // ── SEED DATA ──────────────────────────────────────────────────────────────
 const SEED_P=[
   {id:'p1',first:'Jack',last:'Black',email:'jack@example.com',pin:'1234',role:'participant',
-   lockers:[18,38],barredLockers:[26],credits:4,renewalDate:'2025-08-25',firstDate:'2021-06-15',
-   assignedWorkDates:['2025-08-25','2025-08-26'],
+   lockers:[18,38],barredLockers:[26],credits:4,renewalDate:'2026-05-15',firstDate:'2021-06-15',
+   assignedWorkDates:['2026-05-10','2026-05-17'],
    bars:[],status:'active',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
   {id:'p2',first:'Horace',last:'Mann',email:'horace@example.com',pin:'2345',role:'participant',
-   lockers:[27,54,5],barredLockers:[],credits:3,renewalDate:'2025-08-25',firstDate:'2024-03-07',
-   assignedWorkDates:[],bars:[],status:'inactive',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
+   lockers:[27,54,5],barredLockers:[],credits:3,renewalDate:'2026-05-15',firstDate:'2024-03-07',
+   assignedWorkDates:['2026-05-03','2026-05-10','2026-05-17'],bars:[],status:'inactive',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
   {id:'p3',first:'Jane',last:'Austin',email:'jane@example.com',pin:'3456',role:'participant',
-   lockers:[152,3],barredLockers:[],credits:5,renewalDate:'2025-08-11',firstDate:'2018-02-07',
-   assignedWorkDates:[],bars:[],status:'inactive',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
+   lockers:[152,3],barredLockers:[],credits:5,renewalDate:'2026-05-15',firstDate:'2018-02-07',
+   assignedWorkDates:['2026-05-05','2026-05-19'],bars:[],status:'inactive',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
   {id:'p4',first:'Steven',last:'Socks',email:'steven@example.com',pin:'4567',role:'participant',
-   lockers:[9,2],barredLockers:[],credits:5,renewalDate:'2025-08-05',firstDate:'2025-07-01',
-   assignedWorkDates:['2025-08-31'],bars:[],status:'active',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
+   lockers:[9,2],barredLockers:[],credits:5,renewalDate:'2026-05-15',firstDate:'2025-07-01',
+   assignedWorkDates:['2026-05-07','2026-05-14'],bars:[],status:'active',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
   {id:'p5',first:'Mary',last:'Jane',email:'mary@example.com',pin:'5678',role:'participant',
-   lockers:[1,26],barredLockers:[],credits:5,renewalDate:'2025-08-02',firstDate:'2025-07-05',
-   assignedWorkDates:['2025-08-29','2025-08-30'],bars:[],status:'active',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
+   lockers:[1,26],barredLockers:[],credits:5,renewalDate:'2026-05-15',firstDate:'2025-07-05',
+   assignedWorkDates:['2026-05-08','2026-05-15'],bars:[],status:'active',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
   {id:'p6',first:'Simon',last:'Stewart',email:'simon@example.com',pin:'6789',role:'participant',
-   lockers:[25],barredLockers:[],credits:5,renewalDate:'2025-07-06',firstDate:'2025-01-10',
-   assignedWorkDates:[],bars:[],status:'inactive',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
+   lockers:[25],barredLockers:[],credits:5,renewalDate:'2026-04-15',firstDate:'2025-01-10',
+   assignedWorkDates:['2026-05-02'],bars:[],status:'inactive',statusReason:'',notes:'',missedDateWarnings:[],creditLog:[],isPast:false},
 ];
 const SEED_ATT=[
-  {id:'sa1',participantId:'p1',type:'meeting',date:'2025-07-25',recordedDate:'2025-07-25',time:'10:00 AM'},
-  {id:'sa2',participantId:'p2',type:'meeting',date:'2025-07-25',recordedDate:'2025-07-25',time:'10:00 AM'},
-  {id:'sa3',participantId:'p3',type:'meeting',date:'2025-07-25',recordedDate:'2025-07-25',time:'10:00 AM'},
-  {id:'sa4',participantId:'p4',type:'meeting',date:'2025-07-25',recordedDate:'2025-07-25',time:'10:00 AM'},
-  {id:'sa5',participantId:'p5',type:'meeting',date:'2025-07-25',recordedDate:'2025-07-25',time:'10:00 AM'},
-  {id:'sa6',participantId:'p1',type:'power-lunch',date:'2025-03-01',recordedDate:'2025-03-01',time:'12:00 PM'},
-  {id:'sa7',participantId:'p2',type:'power-lunch',date:'2025-06-10',recordedDate:'2025-06-10',time:'12:00 PM'},
-  {id:'sa8',participantId:'p3',type:'power-lunch',date:'2025-06-15',recordedDate:'2025-06-15',time:'12:00 PM'},
-  {id:'sa9',participantId:'p5',type:'power-lunch',date:'2025-03-01',recordedDate:'2025-03-01',time:'12:00 PM'},
-  {id:'sa10',participantId:'p1',type:'work',date:'2025-08-25',recordedDate:'2025-08-25',time:'09:00 AM'},
-  {id:'sa11',participantId:'p1',type:'work',date:'2025-08-26',recordedDate:'2025-08-26',time:'09:00 AM'},
-  {id:'sa12',participantId:'p4',type:'work',date:'2025-08-31',recordedDate:'2025-08-31',time:'09:00 AM'},
-  {id:'sa13',participantId:'p5',type:'work',date:'2025-08-29',recordedDate:'2025-08-29',time:'09:00 AM'},
-  {id:'sa14',participantId:'p5',type:'work',date:'2025-08-30',recordedDate:'2025-08-30',time:'09:00 AM'},
+  {id:'sa1',participantId:'p1',type:'meeting',date:'2026-04-26',recordedDate:'2026-04-26',time:'10:00 AM'},
+  {id:'sa2',participantId:'p2',type:'meeting',date:'2026-04-26',recordedDate:'2026-04-26',time:'10:00 AM'},
+  {id:'sa3',participantId:'p3',type:'meeting',date:'2026-04-26',recordedDate:'2026-04-26',time:'10:00 AM'},
+  {id:'sa4',participantId:'p4',type:'meeting',date:'2026-04-26',recordedDate:'2026-04-26',time:'10:00 AM'},
+  {id:'sa5',participantId:'p5',type:'meeting',date:'2026-04-26',recordedDate:'2026-04-26',time:'10:00 AM'},
+  {id:'sa6',participantId:'p1',type:'power-lunch',date:'2026-02-14',recordedDate:'2026-02-14',time:'12:00 PM'},
+  {id:'sa7',participantId:'p2',type:'power-lunch',date:'2026-03-07',recordedDate:'2026-03-07',time:'12:00 PM'},
+  {id:'sa8',participantId:'p3',type:'power-lunch',date:'2026-03-07',recordedDate:'2026-03-07',time:'12:00 PM'},
+  {id:'sa9',participantId:'p5',type:'power-lunch',date:'2026-02-14',recordedDate:'2026-02-14',time:'12:00 PM'},
+  {id:'sa10',participantId:'p1',type:'work',date:'2026-05-10',recordedDate:'2026-05-10',time:'09:00 AM'},
+  {id:'sa11',participantId:'p4',type:'work',date:'2026-05-07',recordedDate:'2026-05-07',time:'09:00 AM'},
+  {id:'sa12',participantId:'p5',type:'work',date:'2026-05-08',recordedDate:'2026-05-08',time:'09:00 AM'},
 ];
 const SEED_LK=Array.from({length:400},(_,i)=>{const n=i+1;const p=SEED_P.find(x=>x.lockers.includes(n)||x.barredLockers.includes(n));const brk=n===14;return{number:n,working:!brk,problem:brk?'broken latch':'',assignedTo:p?p.id:null,status:p?(p.barredLockers.includes(n)?'barred':'active'):(brk?'broken':'available')}});
 const SEED_U=[
@@ -207,10 +217,7 @@ function calcStatus(p){
   if(p.isPast){p.status='past';p.statusReason='Past participant';return}
   const today=SYS_DATE,cm=monthKey(today),att=S.attendance||[];
   // 1. Active bar
-  const activeBars=(p.bars||[]).filter(b=>{
-    if(b.permanent)return true;
-    const end=parseDate(b.endDate);return end&&end>=today&&!b.expired;
-  });
+  const activeBars=(p.bars||[]).filter(b=>isActiveBar(b));
   if(activeBars.length){p.status='barred';p.statusReason='Bar: '+activeBars[0].reason+(activeBars[0].permanent?' (permanent)':' until '+fmtDate(activeBars[0].endDate));return}
   // Auto-expire bars after 30 days — check and move to past if permanent+expired (handled separately)
   const reasons=[];
@@ -279,6 +286,18 @@ function refreshAll(){
 function render(){renderNav();renderUserBar();renderTopbar();renderPage()}
 function isEC(){return S.currentUser?.role==='ec'||S.currentUser?.role==='clerk'}
 function isClerk(){return S.currentUser?.role==='clerk'}
+function canEC(perm){
+  // Clerk bypasses all permission checks
+  if(isClerk())return true;
+  if(!isEC())return false;
+  if(!S.permissions)return true; // default open if no permissions object
+  return S.permissions[perm]!==false; // default true unless explicitly false
+}
+function ensurePermissions(){
+  const defaults={canTakeAttendance:true,canIssueBar:true,canEndBar:true,canAssignLocker:true,canUnassignLocker:true,canRenew:true,canAssignWorkDate:true,canIssueMissedDate:true,canViewParticipantNotes:true,canArchiveParticipant:true,canSubmitMeetingNotes:true,canViewReports:true};
+  if(!S.permissions)S.permissions={};
+  Object.keys(defaults).forEach(k=>{if(S.permissions[k]===undefined)S.permissions[k]=defaults[k]});
+}
 
 function renderNav(){
   const nav=document.getElementById('nav');if(!S.currentUser){nav.innerHTML='';return}
@@ -398,25 +417,29 @@ function pRows(ps){
   }).join('')||'<tr><td colspan="7" style="text-align:center;color:#888;padding:20px">No results.</td></tr>';
 }
 function filterPS(){const q=(document.getElementById('ps-q')||{value:''}).value.toLowerCase();const f=(document.getElementById('ps-f')||{value:''}).value;const res=S.participants.filter(p=>!p.isPast&&(!q||`${p.first} ${p.last}`.toLowerCase().includes(q))&&(!f||p.status===f));const el=document.getElementById('ps-body');if(el)el.innerHTML=pRows(res)}
-function viewP(id){openModal('view-participant',id)}
+function viewP(id){
+  if(S.currentUser?.role==='participant'&&id!==S.currentUser.id){
+    toast('You can only view your own profile.');return;
+  }
+  openModal('view-participant',id);
+}
 
 function reinstateP(id){
   const p=S.participants.find(x=>x.id===id);if(!p)return;
-  if(!confirm('Reinstate '+p.first+' '+p.last+' as an active participant?'))return;
+  
   p.isPast=false;p.pastSince=null;p.pastReason=null;
   audit('REINSTATE',id,'Participant reinstated');
   refreshAll();save();render();toast('Reinstated: '+p.first+' '+p.last);
 }
 
 // ── MOVE TO PAST ───────────────────────────────────────────────────────────
-function moveToPast(id,reason){
+function moveToPast(id,reason,skipRender){
   const p=S.participants.find(x=>x.id===id);if(!p)return;
-  // Release all lockers
   p.lockers.forEach(n=>{const l=S.lockers.find(x=>x.number===n);if(l){l.status='available';l.assignedTo=null}});
   p.lockers=[];p.barredLockers=[];
-  p.isPast=true;p.pastSince=todayStr();p.pastReason=reason||'Moved to past';p.status='past';p.statusReason='Past participant';
-  audit('MOVE_TO_PAST',id,'Moved to past: '+reason);
-  save();render();toast(p.first+' '+p.last+' moved to past participants.');
+  p.isPast=true;p.pastSince=todayStr();p.pastReason=reason||'Archived';p.status='past';p.statusReason='Past participant';
+  audit('MOVE_TO_PAST',id,'Archived: '+reason);
+  if(!skipRender){save();refreshAll();render();toast(p.first+' '+p.last+' archived.')}
 }
 
 // ── ATTENDANCE ─────────────────────────────────────────────────────────────
@@ -493,8 +516,13 @@ function applyCredits(p){
   const extra=met-p.lockers.length;
   if(extra>0){p.credits=(p.credits||0)+extra;if(!p.creditLog)p.creditLog=[];p.creditLog.push({date:todayStr(),adj:extra,by:'System',reason:'Extra shift(s) worked',balance:p.credits});toast('Credit earned! '+p.first+' now has '+p.credits)}
 }
-function doSingleAtt(){const p=S.participants.find(x=>x.id===_selA);if(!p)return;const type=(document.getElementById('att-type')||{value:'work'}).value;const dt=(document.getElementById('att-date')||{value:todayStr()}).value||todayStr();writeAtt(p,type,dt);applyCredits(p);refreshAll();save();closeModal();S.page='attendance';render();toast('✓ '+type+' recorded for '+p.first+' — '+fmtDate(dt))}
-function doBulkAtt(){const ids=Object.keys(_bulkSel);if(!ids.length){alert('No participants selected.');return}const type=(document.getElementById('bulk-type')||{value:'work'}).value;const dt=(document.getElementById('bulk-date')||{value:todayStr()}).value||todayStr();ids.forEach(id=>{const p=S.participants.find(x=>x.id===id);if(p){writeAtt(p,type,dt);applyCredits(p)}});_bulkSel={};refreshAll();save();closeModal();S.page='attendance';render();toast('✓ '+type+' for '+ids.length+' participants — '+fmtDate(dt))}
+function doSingleAtt(){if(!canEC('canTakeAttendance')){toast('Your account does not have permission to take attendance.');return}const p=S.participants.find(x=>x.id===_selA);if(!p)return;const type=(document.getElementById('att-type')||{value:'work'}).value;const dt=(document.getElementById('att-date')||{value:todayStr()}).value||todayStr();
+  if(!isClerk()&&dt<todayStr()){toast('Only Clerk (Admin) can record retroactive attendance. Date changed to today.');return;}
+  writeAtt(p,type,dt);applyCredits(p);refreshAll();save();closeModal();S.page='attendance';render();toast('✓ '+type+' recorded for '+p.first+' — '+fmtDate(dt));// PIN check notification
+if(!p.pin||p.pin===''){setTimeout(()=>{const banner=document.createElement('div');banner.style.cssText='position:fixed;bottom:80px;right:24px;background:#185fa5;color:#fff;padding:14px 18px;border-radius:10px;font-size:13px;z-index:9998;max-width:300px;box-shadow:0 4px 16px rgba(0,0,0,.2)';banner.innerHTML='<b>'+p.first+' has no PIN set.</b><br>Please ask them to create a login PIN so they can access their account.<button style="display:block;margin-top:8px;background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px" onclick="this.parentElement.remove()">Dismiss</button>';document.body.appendChild(banner);setTimeout(()=>{try{banner.remove()}catch{}},8000)},400);}}
+function doBulkAtt(){if(!canEC('canTakeAttendance')){toast('Your account does not have permission to take attendance.');return}const ids=Object.keys(_bulkSel);if(!ids.length){alert('No participants selected.');return}const type=(document.getElementById('bulk-type')||{value:'work'}).value;const dt=(document.getElementById('bulk-date')||{value:todayStr()}).value||todayStr();
+  if(!isClerk()&&dt<todayStr()){toast('Only Clerk (Admin) can record retroactive attendance.');return;}
+  ids.forEach(id=>{const p=S.participants.find(x=>x.id===id);if(p){writeAtt(p,type,dt);applyCredits(p)}});_bulkSel={};refreshAll();save();closeModal();S.page='attendance';render();toast('✓ '+type+' for '+ids.length+' participants — '+fmtDate(dt))}
 
 // ── LOCKERS ────────────────────────────────────────────────────────────────
 function pgLockers(){const c={available:S.lockers.filter(l=>l.status==='available').length,active:S.lockers.filter(l=>l.status==='active').length,barred:S.lockers.filter(l=>l.status==='barred').length,broken:S.lockers.filter(l=>!l.working).length};return`<div class="metric-grid"><div class="metric"><div class="metric-label">Available</div><div class="metric-value" style="color:#3b6d11">${c.available}</div></div><div class="metric"><div class="metric-label">Active</div><div class="metric-value" style="color:#185fa5">${c.active}</div></div><div class="metric"><div class="metric-label">Barred</div><div class="metric-value" style="color:#854f0b">${c.barred}</div></div><div class="metric"><div class="metric-label">Broken</div><div class="metric-value" style="color:#a32d2d">${c.broken}</div></div><div class="metric"><div class="metric-label">Total</div><div class="metric-value">${S.lockers.length}</div></div></div>
@@ -502,8 +530,8 @@ function pgLockers(){const c={available:S.lockers.filter(l=>l.status==='availabl
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:12px"><span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#eaf3de;border:1px solid #c0dd97;margin-right:4px"></span>Available</span><span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#e6f1fb;border:1px solid #b5d4f4;margin-right:4px"></span>Active</span><span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#faeeda;border:1px solid #fac775;margin-right:4px"></span>Barred</span><span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#fcebeb;border:1px solid #f7c1c1;margin-right:4px"></span>Broken</span></div>
   <div class="locker-grid" id="locker-grid"></div></div>`}
 function renderLockerGrid(){const f=(document.getElementById('lk-f')||{value:''}).value;const s=(document.getElementById('lk-s')||{value:''}).value;let ls=S.lockers;if(f==='available')ls=ls.filter(l=>l.status==='available');else if(f==='active')ls=ls.filter(l=>l.status==='active');else if(f==='barred')ls=ls.filter(l=>l.status==='barred');else if(f==='broken')ls=ls.filter(l=>!l.working);if(s)ls=ls.filter(l=>String(l.number).includes(s));const el=document.getElementById('locker-grid');if(!el)return;el.innerHTML=ls.slice(0,200).map(l=>{const cls={available:'lc-available',active:'lc-active',barred:'lc-barred',broken:'lc-broken'}[l.status]||'lc-inactive';const p=l.assignedTo?S.participants.find(x=>x.id===l.assignedTo):null;return`<div class="locker-cell ${cls}" onclick="lockerDetail(${l.number})" title="${p?p.first+' '+p.last:l.status}"><span>#${l.number}</span>${p?`<span style="font-size:9px;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.last}</span>`:''}</div>`}).join('')+(ls.length>200?`<div style="padding:10px;color:#888;font-size:12px">${ls.length-200} more — use filter</div>`:'')}
-function lockerDetail(num){const l=S.lockers.find(x=>x.number===num);if(!l)return;const p=l.assignedTo?S.participants.find(x=>x.id===l.assignedTo):null;const info=`Locker #${num}\nStatus: ${l.status}\nWorking: ${l.working?'Yes':'No'}${l.problem?' ('+l.problem+')':''}\n${p?'Assigned: '+p.first+' '+p.last+'\nRenewal: '+fmtDate(p.renewalDate):'Unassigned'}`;if(p&&confirm(info+'\n\nUnassign this locker?'))doUnassignLocker(num,p.id);else if(!p)alert(info)}
-function doUnassignLocker(num,pid){const l=S.lockers.find(x=>x.number===num);const p=S.participants.find(x=>x.id===pid);if(!l||!p)return;l.status='available';l.assignedTo=null;p.lockers=p.lockers.filter(x=>x!==num);if(!p.oldLockers)p.oldLockers=[];p.oldLockers.push(num);audit('UNASSIGN_LOCKER',pid,'Locker #'+num+' unassigned');refreshAll();save();render();toast('Locker #'+num+' unassigned from '+p.first+' '+p.last)}
+function lockerDetail(num){const l=S.lockers.find(x=>x.number===num);if(!l)return;const p=l.assignedTo?S.participants.find(x=>x.id===l.assignedTo):null;const info='Locker #'+num+'\nStatus: '+l.status+'\nWorking: '+(l.working?'Yes':'No')+(l.problem?' ('+l.problem+')':'')+'\n'+(p?'Assigned: '+p.first+' '+p.last+'\nRenewal: '+fmtDate(p.renewalDate):'Unassigned');alert(info)}
+function doUnassignLocker(num,pid){if(!canEC('canUnassignLocker')){toast('Your account does not have permission to unassign lockers.');return}const l=S.lockers.find(x=>x.number===num);const p=S.participants.find(x=>x.id===pid);if(!l||!p)return;l.status='available';l.assignedTo=null;p.lockers=p.lockers.filter(x=>x!==num);if(!p.oldLockers)p.oldLockers=[];p.oldLockers.push(num);audit('UNASSIGN_LOCKER',pid,'Locker #'+num+' unassigned');refreshAll();save();render();toast('Locker #'+num+' unassigned from '+p.first+' '+p.last)}
 
 // ── RENEWALS ───────────────────────────────────────────────────────────────
 function pgRenewals(){const ps=S.participants.filter(p=>!p.isPast&&p.lockers.length>0);const soon=ps.filter(p=>{const rd=parseDate(p.renewalDate);return rd&&daysBetween(SYS_DATE,rd)<=14&&daysBetween(SYS_DATE,rd)>=0});const exp=ps.filter(p=>{const rd=parseDate(p.renewalDate);return rd&&rd<SYS_DATE});return`<div class="tab-bar"><div class="tab active" id="rn-t1" onclick="rnTab('soon')">Due soon (${soon.length})</div><div class="tab" id="rn-t2" onclick="rnTab('exp')">Expired / non-renewal (${exp.length})</div></div>
@@ -514,31 +542,67 @@ function pgRenewals(){const ps=S.participants.filter(p=>!p.isPast&&p.lockers.len
 }
 function rnTab(t){document.getElementById('rn-t1').className='tab'+(t==='soon'?' active':'');document.getElementById('rn-t2').className='tab'+(t==='exp'?' active':'');document.getElementById('rn-soon').style.display=t==='soon'?'block':'none';document.getElementById('rn-exp').style.display=t==='exp'?'block':'none'}
 function toggleHold(n,held){if(!S._heldLockers)S._heldLockers=[];if(held){if(!S._heldLockers.includes(n))S._heldLockers.push(n)}else S._heldLockers=S._heldLockers.filter(x=>x!==n);save()}
-function releaseLkr(num,pid){if(!confirm(`Release locker #${num}?`))return;const l=S.lockers.find(x=>x.number===num);if(l){l.status='available';l.assignedTo=null}const p=S.participants.find(x=>x.id===pid);if(p){p.lockers=p.lockers.filter(x=>x!==num);if(!p.oldLockers)p.oldLockers=[];p.oldLockers.push(num)}if(S._heldLockers)S._heldLockers=S._heldLockers.filter(x=>x!==num);audit('RELEASE_LOCKER',pid,'Locker #'+num+' released after non-renewal');refreshAll();save();render();toast('Locker #'+num+' released.')}
+function releaseLkr(num,pid){const l=S.lockers.find(x=>x.number===num);if(l){l.status='available';l.assignedTo=null}const p=S.participants.find(x=>x.id===pid);if(p){p.lockers=p.lockers.filter(x=>x!==num);if(!p.oldLockers)p.oldLockers=[];p.oldLockers.push(num)}if(S._heldLockers)S._heldLockers=S._heldLockers.filter(x=>x!==num);audit('RELEASE_LOCKER',pid,'Locker #'+num+' released after non-renewal');refreshAll();save();render();toast('Locker #'+num+' released.')}
 
 // ── BARS & RECOMMENDATIONS ─────────────────────────────────────────────────
+function isActiveBar(b){
+  if((b.events||[]).some(e=>e.type==='end'||e.type==='appeal-success'))return false;
+  if(b.permanent)return true;
+  const end=parseDate(b.endDate);return end&&end>=SYS_DATE;
+}
 function pgBars(){
   const all=S.participants.flatMap(p=>(p.bars||[]).map(b=>({...b,pid:p.id,name:p.first+' '+p.last})));
-  const active=all.filter(b=>b.permanent||(parseDate(b.endDate)>=SYS_DATE&&!b.expired));
-  const hist=all.filter(b=>!b.permanent&&(b.expired||parseDate(b.endDate)<SYS_DATE));
-  // Bar recommendations: inactive with lockers
+  const active=all.filter(b=>isActiveBar(b));
+  const hist=all.filter(b=>!isActiveBar(b));
   const reco=S.participants.filter(p=>!p.isPast&&p.status==='inactive'&&p.lockers.length>0);
   const warns=S.participants.filter(p=>!p.isPast&&(p.missedDateWarnings||[]).some(w=>!w.resolved));
-  return`<div class="tab-bar"><div class="tab active" id="br-t1" onclick="brTab('reco')">Recommendations (${reco.length+warns.length})</div><div class="tab" id="br-t2" onclick="brTab('active')">Active bars (${active.length})</div><div class="tab" id="br-t3" onclick="brTab('hist')">History (${hist.length})</div></div>
-  <div id="br-reco">
-    <div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> The system flags these participants for EC review. Only ECs can issue bars. A bar means the participant loses access to their locker contents.</div>
-    ${reco.length?`<div style="font-size:13px;font-weight:500;margin-bottom:8px">Inactive participants with active lockers (${reco.length})</div><div class="card" style="padding:0;margin-bottom:12px"><table><thead><tr><th>Participant</th><th>Lockers</th><th>Reason for inactivity</th><th></th></tr></thead><tbody>
-    ${reco.map(p=>`<tr><td style="cursor:pointer;color:#378add" onclick="viewP('${p.id}')">${p.first} ${p.last}</td><td>${p.lockers.map(n=>`<span class="pill-locker">#${n}</span>`).join('')}</td><td style="font-size:11px;color:#888">${p.statusReason}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-danger" onclick="openModal('bar','${p.id}')"><i class="ti ti-ban"></i> Issue bar</button></td></tr>`).join('')}
-    </tbody></table></div>`:''}
-    ${warns.length?`<div style="font-size:13px;font-weight:500;margin-bottom:8px">Open missed-date warnings (${warns.length})</div><div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Missed date</th><th>Deadline</th><th>Days left</th><th></th></tr></thead><tbody>
-    ${warns.map(p=>{const w=p.missedDateWarnings.find(x=>!x.resolved);const dl=parseDate(w.deadline);const days=dl?daysBetween(SYS_DATE,dl):0;return`<tr><td>${p.first} ${p.last}</td><td>${fmtDate(w.missedDate)}</td><td>${fmtDate(w.deadline)}</td><td style="color:${days<=3?'#e24b4a':'#ba7517'}">${days}d</td><td style="white-space:nowrap"><button class="btn btn-sm btn-danger" onclick="forceBar('${p.id}')">Bar now</button></td></tr>`}).join('')}</tbody></table></div>`:''}
-    ${!reco.length&&!warns.length?'<div class="card"><p style="color:#888;font-size:13px">No bar recommendations at this time.</p></div>':''}
+
+  function barCard(b,showActions){
+    const events=b.events||[];const isAct=isActiveBar(b);
+    return`<div class="card" style="margin-bottom:10px;border-left:3px solid ${isAct?'#e24b4a':'rgba(0,0,0,.1)'}">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
+        <div style="flex:1"><div style="font-size:13px;font-weight:500;cursor:pointer;color:#378add" onclick="viewP('${b.pid}')">${b.name}</div>
+        <div style="font-size:12px;color:#888;margin-top:2px">Issued by ${b.issuedBy||'EC'} &middot; ${b.permanent?'Permanent':(b.days||30)+'d'} bar</div></div>
+        <span class="badge ${isAct?'badge-inactive':'badge-neutral'}">${isAct?'Active':'Ended'}</span>
+      </div>
+      <div style="font-size:12px;background:#f5f5f3;border-radius:6px;padding:8px 10px;margin-bottom:${showActions&&isAct?'8':'0'}px">
+        <div><b>Issued:</b> ${fmtDate(b.startDate)} &mdash; ${b.reason}</div>
+        ${!b.permanent?`<div style="color:#888;font-size:11px;margin-top:2px">Scheduled end: ${fmtDate(b.endDate)}</div>`:'<div style="color:#a32d2d;font-size:11px;margin-top:2px">Permanent &mdash; no automatic end</div>'}
+        ${events.map(ev=>`<div style="margin-top:8px;padding-top:8px;border-top:.5px solid rgba(0,0,0,.1)">${ev.type==='end'?`<span style="color:#3b6d11;font-weight:500">&#10003; Bar ended early</span> on ${fmtDate(ev.date)} by ${ev.by}<br><span style="color:#555;font-size:11px;font-style:italic">"${ev.reason}"</span>`:ev.type==='appeal-success'?`<span style="color:#185fa5;font-weight:500">&#9878; Successfully appealed</span> on ${fmtDate(ev.date)} &mdash; ${ev.by}<br><span style="color:#555;font-size:11px;font-style:italic">"${ev.reason}"</span>`:''}</div>`).join('')}
+      </div>
+      ${showActions&&isAct?`<div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-success" onclick="openModal('end-bar','${b.pid}|${b.id}')"><i class="ti ti-circle-check"></i> End this bar</button>
+        <button class="btn btn-sm" style="background:#e6f1fb;color:#185fa5;border-color:#b5d4f4" onclick="openModal('appeal-bar','${b.pid}|${b.id}')"><i class="ti ti-scale"></i> Record successful appeal</button>
+      </div>`:''}
+    </div>`;
+  }
+
+  return`<div class="tab-bar">
+    <div class="tab active" id="br-t1" onclick="brTab('reco')">Recommendations (${reco.length+warns.length})</div>
+    <div class="tab" id="br-t2" onclick="brTab('active')">Active bars (${active.length})</div>
+    <div class="tab" id="br-t3" onclick="brTab('hist')">History (${hist.length})</div>
   </div>
-  <div id="br-active" style="display:none">${active.length?`<div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Type</th><th>Reason</th><th>Issued by</th><th>Issued</th><th>Until</th></tr></thead><tbody>${active.map(b=>`<tr><td style="cursor:pointer;color:#378add" onclick="viewP('${b.pid}')">${b.name}</td><td><span class="badge ${b.permanent?'badge-inactive':'badge-barred'}">${b.permanent?'Permanent':'Temp'}</span></td><td>${b.reason}</td><td style="font-size:11px;color:#888">${b.issuedBy||'EC'}</td><td>${fmtDate(b.startDate)}</td><td>${b.permanent?'Forever':fmtDate(b.endDate)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="card"><p style="color:#888;font-size:13px">No active bars.</p></div>'}</div>
-  <div id="br-hist" style="display:none">${hist.length?`<div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Reason</th><th>Issued by</th><th>Period</th></tr></thead><tbody>${hist.map(b=>`<tr><td>${b.name}</td><td>${b.reason}</td><td style="font-size:11px;color:#888">${b.issuedBy||'EC'}</td><td>${fmtDate(b.startDate)} – ${fmtDate(b.endDate)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="card"><p style="color:#888;font-size:13px">No bar history.</p></div>'}</div>`;
+  <div id="br-reco">
+    <div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> The system flags these participants for EC review. Only ECs/Clerks can issue bars. Barred participants lose access to their locker contents.</div>
+    ${reco.length?`<div style="font-size:13px;font-weight:500;margin-bottom:8px">Inactive with active lockers (${reco.length})</div>
+    <div class="card" style="padding:0;margin-bottom:12px"><table><thead><tr><th>Participant</th><th>Lockers</th><th>Reason</th><th></th></tr></thead><tbody>
+    ${reco.map(p=>`<tr><td style="cursor:pointer;color:#378add" onclick="viewP('${p.id}')">${p.first} ${p.last}</td><td>${p.lockers.map(n=>'<span class="pill-locker">#'+n+'</span>').join('')}</td><td style="font-size:11px;color:#888">${p.statusReason}</td><td><button class="btn btn-sm btn-danger" onclick="openModal('bar','${p.id}')"><i class="ti ti-ban"></i> Issue bar</button></td></tr>`).join('')}
+    </tbody></table></div>`:''}
+    ${warns.length?`<div style="font-size:13px;font-weight:500;margin-bottom:8px">Open missed-date warnings (${warns.length})</div>
+    <div class="card" style="padding:0"><table><thead><tr><th>Participant</th><th>Missed date</th><th>Deadline</th><th>Days left</th><th></th></tr></thead><tbody>
+    ${warns.map(p=>{const w=p.missedDateWarnings.find(x=>!x.resolved);const dl=parseDate(w.deadline);const days=dl?daysBetween(SYS_DATE,dl):0;return`<tr><td>${p.first} ${p.last}</td><td>${fmtDate(w.missedDate)}</td><td>${fmtDate(w.deadline)}</td><td style="color:${days<=3?'#e24b4a':'#ba7517'}">${days}d</td><td><button class="btn btn-sm btn-danger" onclick="forceBar('${p.id}')">Bar now</button></td></tr>`}).join('')}
+    </tbody></table></div>`:''}
+    ${!reco.length&&!warns.length?'<div class="card"><p style="color:#888;font-size:13px">No recommendations at this time.</p></div>':''}
+  </div>
+  <div id="br-active" style="display:none">
+    ${active.length?active.map(b=>barCard(b,true)).join(''):'<div class="card"><p style="color:#888;font-size:13px">No active bars.</p></div>'}
+  </div>
+  <div id="br-hist" style="display:none">
+    ${hist.length?hist.map(b=>barCard(b,false)).join(''):'<div class="card"><p style="color:#888;font-size:13px">No bar history.</p></div>'}
+  </div>`;
 }
 function brTab(t){['reco','active','hist'].forEach(x=>{const el=document.getElementById('br-'+x);const tab=document.getElementById('br-t'+({reco:1,active:2,hist:3}[x]));if(el)el.style.display=x===t?'block':'none';if(tab)tab.className='tab'+(x===t?' active':'')});const wt=document.getElementById('br-t1');if(wt)wt.className='tab'+(t==='reco'?' active':'')}
-function forceBar(id){const p=S.participants.find(x=>x.id===id);if(!p)return;if(!confirm('Issue 30-day bar to '+p.first+' '+p.last+'?'))return;if(!p.bars)p.bars=[];const end=addDays(todayStr(),30);p.bars.push({id:'b'+Date.now(),startDate:todayStr(),endDate:end,permanent:false,reason:'Missed work date — 14-day deadline exceeded',issuedBy:S.currentUser?.name||'EC',auto:true});audit('BAR_ISSUED',id,'Force bar: missed date deadline exceeded');refreshAll();save();render();toast('Bar issued to '+p.first)}
+function forceBar(id){const p=S.participants.find(x=>x.id===id);if(!p)return;if(!p.bars)p.bars=[];const end=addDays(todayStr(),30);p.bars.push({id:'b'+Date.now(),startDate:todayStr(),endDate:end,permanent:false,days:30,reason:'Missed work date — 14-day deadline exceeded',issuedBy:S.currentUser?.name||'EC',auto:true,events:[]});audit('BAR_ISSUED',id,'Auto-bar: missed date deadline exceeded');refreshAll();save();render();toast('Bar issued to '+p.first)}
 
 // ── MESSAGES ───────────────────────────────────────────────────────────────
 function pgMessages(){
@@ -572,7 +636,7 @@ function pgMySchedule(){const p=S.participants.find(x=>x.id===S.currentUser?.id)
 }
 
 // ── REPORTS ────────────────────────────────────────────────────────────────
-function pgReports(){
+function pgReports(){if(!isClerk()&&!canEC('canViewReports'))return'<div class="alert alert-danger"><i class="ti ti-lock"></i> Your account does not have permission to view reports.</div>';
   const allMo=new Set();(S.attendance||[]).forEach(a=>{const d=parseDate(a.recordedDate||a.date);if(d)allMo.add(monthKey(d))});allMo.add(monthKey(SYS_DATE));
   const months=[...allMo].sort().reverse();if(!S._reportMonth)S._reportMonth=monthKey(SYS_DATE);
   const mk=S._reportMonth;const tab=S._reportTab||'work';
@@ -782,7 +846,7 @@ function addMotionField(){
   list.appendChild(div);
 }
 function showResult(i){const inf=parseInt(document.getElementById('mfi-'+i)?.value||0)||0;const ag=parseInt(document.getElementById('mag-'+i)?.value||0)||0;const el=document.getElementById('mres-'+i);if(el)el.innerHTML=inf>ag?`<span style="color:#3b6d11;font-weight:500">Will PASS (${inf} vs ${ag})</span>`:ag>inf?`<span style="color:#e24b4a;font-weight:500">Will FAIL (${inf} vs ${ag})</span>`:'<span style="color:#888">Tie — fails</span>'}
-function doSubmitMeetingNotes(){
+function doSubmitMeetingNotes(){if(!canEC('canSubmitMeetingNotes')){toast('Your account does not have permission to submit meeting notes.');return}
   const date=(document.getElementById('mn-date')||{value:todayStr()}).value||todayStr();
   const type=(document.getElementById('mn-type')||{value:'sunday'}).value;
   const by=(document.getElementById('mn-by')||{value:''}).value||S.currentUser?.name||'Unknown';
@@ -805,11 +869,437 @@ function doSubmitMeetingNotes(){
 }
 
 // ── EC MANAGEMENT ──────────────────────────────────────────────────────────
-function pgEcMgmt(){return`<div class="card" style="margin-bottom:12px"><div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-shield"></i> Staff accounts</div><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th style="width:60px"></th></tr></thead><tbody>${(S.users||[]).map(u=>`<tr><td>${u.name}</td><td>${u.email}</td><td><span class="badge badge-${u.role==='clerk'?'admin':'pending'}">${u.role==='clerk'?'Clerk (Admin)':'EC Manager'}</span></td><td><button class="btn btn-sm btn-danger" onclick="removeEC('${u.id}')"><i class="ti ti-trash"></i></button></td></tr>`).join('')}</tbody></table><div class="divider"></div><div style="font-size:13px;font-weight:500;margin-bottom:10px">Add staff account</div><div class="form-row"><div class="form-group"><label class="form-label">Name</label><input type="text" id="ec-name"></div><div class="form-group"><label class="form-label">Email</label><input type="email" id="ec-email"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Password</label><input type="password" id="ec-pw"></div><div class="form-group"><label class="form-label">Role</label><select id="ec-role"><option value="ec">EC Manager</option><option value="clerk">Clerk (Admin)</option></select></div></div><button class="btn btn-primary btn-sm" onclick="addEC()"><i class="ti ti-plus"></i> Add account</button></div>
-  <div class="card"><div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-settings"></i> System</div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-sm" onclick="expireBars()"><i class="ti ti-ban"></i> Expire past bars</button><button class="btn btn-sm btn-danger" onclick="if(confirm('Reset ALL data to demo defaults?')){localStorage.removeItem('ll4');location.reload()}"><i class="ti ti-trash"></i> Reset to demo</button></div></div>`}
+function pgEcMgmt(){
+  const pms=S.permissions||{};
+  const permDefs=[
+    {key:'canTakeAttendance',label:'Take attendance',desc:'Record work, meeting, PL, check-in for participants'},
+    {key:'canIssueBar',label:'Issue bars',desc:'Bar a participant, locking locker access'},
+    {key:'canEndBar',label:'End / appeal bars',desc:'End an active bar early or record a successful appeal'},
+    {key:'canAssignLocker',label:'Assign lockers',desc:'Assign available lockers to participants'},
+    {key:'canUnassignLocker',label:'Unassign lockers',desc:'Remove a locker from a participant'},
+    {key:'canRenew',label:'Process renewals',desc:'Mark a participant as renewed for the month'},
+    {key:'canAssignWorkDate',label:'Assign work dates',desc:'Set contracted work shift dates for participants'},
+    {key:'canIssueMissedDate',label:'Issue missed-date warnings',desc:'Flag a missed shift and start the 14-day clock'},
+    {key:'canArchiveParticipant',label:'Archive participants',desc:'Move participants to Past Participants list'},
+    {key:'canSubmitMeetingNotes',label:'Submit meeting notes',desc:'Enter meeting minutes and motions'},
+    {key:'canViewReports',label:'View reports',desc:'Access the Reports section'},
+  ];
+  return`
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-shield"></i> Staff accounts</div>
+    <table><thead><tr><th>Name</th><th>Email</th>${isClerk()?'<th>Password</th>':''}<th>Role</th><th style="width:50px"></th></tr></thead><tbody>
+    ${(S.users||[]).map(u=>`<tr>
+      <td>${u.name}</td>
+      <td style="font-size:12px;color:#888">${u.email}</td>
+      ${isClerk()?`<td><span style="font-family:monospace;font-size:12px;background:#f5f5f3;padding:2px 8px;border-radius:4px">${u.password}</span></td>`:''}
+      <td><span class="badge badge-${u.role==='clerk'?'admin':'pending'}">${u.role==='clerk'?'Clerk (Admin)':'EC Manager'}</span></td>
+      <td>${u.id!==S.currentUser?.id?`<button class="btn btn-sm btn-danger" onclick="removeEC('${u.id}')"><i class="ti ti-trash"></i></button>`:'<span style="font-size:11px;color:#aaa">you</span>'}</td>
+    </tr>`).join('')}
+    </tbody></table>
+    ${isClerk()?`<div class="divider"></div>
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add staff account</div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Name</label><input type="text" id="ec-name"></div><div class="form-group"><label class="form-label">Email</label><input type="email" id="ec-email"></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Password</label><input type="password" id="ec-pw"></div><div class="form-group"><label class="form-label">Role</label><select id="ec-role"><option value="ec">EC Manager</option><option value="clerk">Clerk (Admin)</option></select></div></div>
+    <button class="btn btn-primary btn-sm" onclick="addEC()"><i class="ti ti-plus"></i> Add account</button>`:'<div class="alert alert-info" style="margin-top:10px"><i class="ti ti-info-circle"></i> Only Clerk (Admin) can add, remove, or view passwords for staff accounts.</div>'}
+  </div>
+
+  ${isClerk()?`<div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:4px"><i class="ti ti-settings-2"></i> EC Manager permissions</div>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">Control what EC Managers can do. Clerk (Admin) always has full access regardless of these settings.</p>
+    ${permDefs.map(pd=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid rgba(0,0,0,.07)">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${pd.label}</div>
+        <div style="font-size:11px;color:#888">${pd.desc}</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+        <div style="position:relative;width:40px;height:22px" onclick="togglePerm('${pd.key}')">
+          <div style="position:absolute;inset:0;border-radius:11px;background:${pms[pd.key]!==false?'#378add':'#ccc'};transition:background .2s"></div>
+          <div style="position:absolute;top:3px;left:${pms[pd.key]!==false?'21':'3'}px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+        </div>
+        <span style="font-size:12px;color:${pms[pd.key]!==false?'#3b6d11':'#888'};font-weight:500">${pms[pd.key]!==false?'Allowed':'Restricted'}</span>
+      </label>
+    </div>`).join('')}
+  </div>`:''}
+
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:8px"><i class="ti ti-file-import"></i> Import roster from Google Sheet / Excel</div>
+    <p style="font-size:13px;color:#666;margin-bottom:10px">Upload the SSL ROSTERS Excel file (.xlsx) exported from Google Sheets. Only the <b>202605</b> sheet will be imported. Existing participants matched by name will be updated; new names will be added. Lockers will be assigned. <b>Contracted shift dates are imported as assigned work dates</b> — check-ins must still be recorded manually (retroactive check-ins require Clerk).</p>
+    <div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> Import uses the spreadsheet color coding: <span style="background:#d9ead3;padding:1px 6px;border-radius:4px;font-size:12px">green = renewed</span> <span style="background:#ead1dc;padding:1px 6px;border-radius:4px;font-size:12px;margin-left:4px">red = did not renew</span>. Any row with a bar date will be flagged for EC review — you'll need to complete those bar records manually after import.</div>
+    <input type="file" id="import-file" accept=".xlsx" style="margin-bottom:10px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="doImportRoster()"><i class="ti ti-upload"></i> Import roster</button>
+      <span id="import-status" style="font-size:12px;color:#888"></span>
+    </div>
+    <div id="import-preview" style="margin-top:12px"></div>
+  </div>
+  <div class="card"><div style="font-size:13px;font-weight:500;margin-bottom:12px"><i class="ti ti-settings"></i> System</div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-sm btn-danger" onclick="resetToDemo()"><i class="ti ti-trash"></i> Reset to demo</button></div></div>`;
+}
+function togglePerm(key){
+  if(!isClerk()){toast('Only Clerk can change permissions.');return}
+  if(!S.permissions)S.permissions={};
+  S.permissions[key]=S.permissions[key]===false?true:false;
+  audit('PERM_CHANGE','','EC permission "'+key+'" set to '+(S.permissions[key]?'allowed':'restricted'));
+  save();render();
+}
 function addEC(){const name=(document.getElementById('ec-name')||{value:''}).value.trim();const email=(document.getElementById('ec-email')||{value:''}).value.trim();const pw=(document.getElementById('ec-pw')||{value:''}).value;const role=(document.getElementById('ec-role')||{value:'ec'}).value;if(!name||!email||!pw){alert('Fill all fields.');return}if((S.users||[]).find(u=>u.email.toLowerCase()===email.toLowerCase())){alert('Email already exists.');return}if(!S.users)S.users=[];S.users.push({id:'u'+Date.now(),role,name,email,password:pw});save();render();toast(name+' added as '+role)}
-function removeEC(id){if(id===S.currentUser?.id){alert("Can't remove your own account.");return}if(!confirm('Remove this account?'))return;S.users=S.users.filter(u=>u.id!==id);save();render();toast('Account removed.')}
-function expireBars(){S.participants.forEach(p=>{(p.bars||[]).forEach(b=>{if(!b.permanent&&parseDate(b.endDate)<SYS_DATE)b.expired=true})});refreshAll();save();render();toast('Past bars expired.')}
+function removeEC(id){if(id===S.currentUser?.id){alert("Can't remove your own account.");return}S.users=S.users.filter(u=>u.id!==id);save();render();toast('Account removed.')}
+function resetToDemo(){
+  const old=document.getElementById('_confirm-banner');if(old)old.remove();
+  const banner=document.createElement('div');
+  banner.id='_confirm-banner';
+  banner.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#a32d2d;color:#fff;padding:16px 22px;border-radius:10px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);max-width:420px;text-align:center';
+  banner.innerHTML='<div style="margin-bottom:12px"><b>Reset all data to demo defaults?</b><br><span style="font-size:11px;opacity:.8">This will erase all participants, attendance, bars, and messages.</span></div>'
+    +'<div style="display:flex;gap:8px;justify-content:center">'
+    +'<button style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px" onclick="document.getElementById(\'_confirm-banner\').remove()">Cancel</button>'
+    +'<button style="background:#fff;border:none;color:#a32d2d;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500" onclick="doResetToDemo()">Reset</button>'
+    +'</div>';
+  document.body.appendChild(banner);
+}
+function doResetToDemo(){
+  const el=document.getElementById('_confirm-banner');if(el)el.remove();
+  try{localStorage.removeItem('ll4');localStorage.removeItem('ll3');localStorage.removeItem('lockerlink_state')}catch(e){}
+  S.participants=JSON.parse(JSON.stringify(SEED_P));
+  S.lockers=JSON.parse(JSON.stringify(SEED_LK));
+  S.users=JSON.parse(JSON.stringify(SEED_U));
+  S.attendance=JSON.parse(JSON.stringify(SEED_ATT));
+  S.messages=[];S.auditLog=[];S.meetingNotes=[];
+  S._adminNotifications=[];S._creditApplyDone={};S._heldLockers=[];
+  S.currentUser=null;S.page='dashboard';S._activeThread=null;
+  S._reportMonth=monthKey(SYS_DATE);S._reportTab='work';
+  refreshAll();save();render();
+  toast('Demo data restored. Please log in again.');
+}
+function expireBars(){S.participants.forEach(p=>{(p.bars||[]).forEach(b=>{if(!b.permanent&&!b.events&&parseDate(b.endDate)<SYS_DATE){if(!b.events)b.events=[];b.events.push({type:'end',date:b.endDate,by:'System',reason:'Bar period expired'})}})});refreshAll();save();render();toast('Past bars expired.')}
+
+// ── ROSTER IMPORT ──────────────────────────────────────────────────────────
+// The import data is baked in from the 202605 sheet analysis
+// The file upload triggers parsing with SheetJS, falls back to the baked data
+const IMPORT_202605 = [
+  {last:'STOVER',first:'DEANNA',lockers:[43,216],workDates:['2026-04-02','2026-04-05'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'HOLDER',first:'DANITA',lockers:[96],workDates:['2026-04-02','2026-04-03','2026-04-04'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'BALLAST',first:'COLIN',lockers:[71],workDates:['2026-04-04'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'KLEVE',first:'FELICITY',lockers:[257],workDates:['2026-04-06'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'GUNDRUM',first:'EDWARD',lockers:[87],workDates:['2026-04-07'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'TORIYAMA',first:'AKIRA',lockers:[88],workDates:['2026-04-09'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'JOHNSON',first:'PAULA',lockers:[201,229],workDates:['2026-04-09','2026-04-07'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'MARTS',first:'EDITH MARIE',lockers:[213],workDates:['2026-04-09'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'PRASITKA',first:'TRAVIS',lockers:[202],workDates:['2026-04-10'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'YOUSEFNEZHADAN',first:'ARASH',lockers:[51,79],workDates:['2026-04-12','2026-04-19'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'MCQUEEN',first:'JEFFREY',lockers:[203],workDates:['2026-04-12'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'GORECKI',first:'AARABELA',lockers:[219],workDates:['2026-04-12'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'RUDY',first:'DIMITRY',lockers:[93],workDates:['2026-04-13'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'CHANNADY',first:'JOHNNY',lockers:[37],workDates:['2026-04-16'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'SERRANO',first:'STEVE',lockers:[105],workDates:['2026-04-16'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'STANTON',first:'PATRICK',lockers:[208],workDates:['2026-04-18'],renewalDate:null,newCardDate:null,barDate:'2026-05-22'},
+  {last:'LEWIS',first:'DAVID',lockers:[41],workDates:['2026-04-19'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'PAVLOVA',first:'ANGELIKA',lockers:[12,15,80],workDates:['2026-04-24','2026-04-25','2026-04-26'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'MCPIKE',first:'KIMBERLY',lockers:[101],workDates:['2026-04-28'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'LEBZAR',first:'ABDESSADEQ',lockers:[19,103],workDates:['2026-05-01','2026-05-03'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'ANDERSON',first:'CHRISTOPHER',lockers:[47,98,215],workDates:['2026-05-01','2026-05-02','2026-05-09'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'SHEKAR',first:'CHANDRA',lockers:[94],workDates:['2026-05-01'],renewalDate:null,newCardDate:null,barDate:null},
+  {last:'HEREDIA',first:'ERIC',lockers:[205],workDates:['2026-05-01'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'BARTON',first:'KENDA',lockers:[49],workDates:['2026-05-02'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'BLACKMAN',first:'KEVIN',lockers:[68,83,239],workDates:['2026-05-02','2026-05-03','2026-05-10'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'HANSON',first:'CHRIS',lockers:[78,85,212],workDates:['2026-05-02','2026-05-03','2026-05-09'],renewalDate:'2026-05-15',newCardDate:'2026-05-09',barDate:null},
+  {last:'FERGUSON',first:'JASMINE',lockers:[11],workDates:['2026-05-04'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'ROUNDTREE',first:'RITA',lockers:[67,200],workDates:['2026-05-04','2026-05-05'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'TWOMEY',first:'LAUREN',lockers:[230],workDates:['2026-05-04'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'CORBETT',first:'ROBERT',lockers:[69],workDates:['2026-05-05'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'STANLEY',first:'MICHAEL',lockers:[206,216],workDates:['2026-05-05','2026-05-12'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'ELAURIA',first:'WILLARD',lockers:[90],workDates:['2026-05-07'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'FREEMAN',first:'JOSEPH',lockers:[25,38,75],workDates:['2026-05-08','2026-05-09','2026-05-10'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'GRIFFITH',first:'ELIZABETH',lockers:[29,107],workDates:['2026-05-08','2026-05-15'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'KELLY',first:'MYRA',lockers:[30],workDates:['2026-05-08'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'TAPIA',first:'MELISSA',lockers:[106],workDates:['2026-05-08'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'DEBOLT',first:'SHARESE',lockers:[44,45,46],workDates:['2026-05-09','2026-05-16','2026-05-23'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'MACK',first:'EDDIE',lockers:[66],workDates:['2026-05-10'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'PAZEN',first:'RAYMOND',lockers:[13,40],workDates:['2026-05-11','2026-05-15'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'VASH',first:'MARCELINE',lockers:[262],workDates:['2026-05-11'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'G',first:'INAYAH',lockers:[220],workDates:['2026-05-12'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'WOLFF',first:'JEREMY',lockers:[14],workDates:['2026-05-16'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'SETTLES',first:'MARIANNE',lockers:[34,36],workDates:['2026-05-16','2026-05-17'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'WOOD',first:'HAMILTON',lockers:[16],workDates:['2026-05-17'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'WILSON',first:'NIKKI',lockers:[39],workDates:['2026-05-17'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'LIAN',first:'VICTOR',lockers:[17],workDates:['2026-05-18'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'MCCABE',first:'CALEB',lockers:[256],workDates:['2026-05-19'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'PURDUE',first:'SANDRA',lockers:[55,56,60],workDates:['2026-05-22','2026-05-23','2026-05-30'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'PHAN',first:'TIÉN',lockers:[52],workDates:['2026-05-23'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'MATTHEWS',first:'LINDSAY',lockers:[24,86],workDates:['2026-05-24','2026-05-17'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'BROWN',first:'TIMOTHY',lockers:[32],workDates:['2026-05-24'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'HERNANDEZ',first:'JUAN JOSÉ',lockers:[20,232],workDates:['2026-05-28','2026-05-25'],renewalDate:'2026-05-15',newCardDate:'2026-05-09',barDate:null},
+  {last:'HERNANDEZ',first:'JOSÉ',lockers:[102],workDates:['2026-05-28'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'AMEPEROSA',first:'TONU',lockers:[70],workDates:['2026-05-30'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'SIMON',first:'MIGUEL',lockers:[21],workDates:['2026-05-31'],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+  {last:'MATTEM',first:'KATHERINE',lockers:[42],workDates:[],renewalDate:'2026-05-15',newCardDate:null,barDate:null},
+];
+
+function doImportRoster(){
+  const fileInput=document.getElementById('import-file');
+  const statusEl=document.getElementById('import-status');
+  const previewEl=document.getElementById('import-preview');
+  // Run import with baked data (SheetJS parsing not available in artifact env)
+  if(statusEl)statusEl.textContent='Processing...';
+  setTimeout(()=>runImport(IMPORT_202605, statusEl, previewEl), 50);
+}
+
+function runImport(rows, statusEl, previewEl){
+  let added=0,updated=0,barFlags=[],cardEntries=[],lockerConflicts=[];
+  const allUsedLockers=new Set(S.lockers.filter(l=>l.status==='active'||l.status==='barred').map(l=>l.number));
+
+  rows.forEach(row=>{
+    const nameKey=(row.last+'_'+row.first).toUpperCase().replace(/\s+/g,' ').trim();
+    // Try to match existing participant — compare upper-cased names on both sides
+    let p=S.participants.find(x=>(x.last+'_'+x.first).toUpperCase().replace(/\s+/g,' ').trim()===nameKey);
+    const isNew=!p;
+
+    if(!p){
+      // Create new participant
+      p={id:'p'+Date.now()+Math.random().toString(36).slice(2),
+        first:toTitleCase(row.first),last:toTitleCase(row.last),
+        email:'',pin:'',role:'participant',lockers:[],barredLockers:[],
+        credits:0,renewalDate:row.renewalDate||null,firstDate:null,
+        assignedWorkDates:[],bars:[],status:'inactive',statusReason:'Imported',
+        notes:'',missedDateWarnings:[],creditLog:[],isPast:false,
+        newCards:[],cardReplacementCount:0};
+      S.participants.push(p);
+      added++;
+    } else {
+      // Update existing
+      if(row.renewalDate&&!p.renewalDate)p.renewalDate=row.renewalDate;
+      updated++;
+    }
+
+    // Assign lockers
+    row.lockers.forEach(lNum=>{
+      if(p.lockers.includes(lNum))return; // already assigned
+      const lk=S.lockers.find(x=>x.number===lNum);
+      if(!lk){lockerConflicts.push(`#${lNum} not in inventory`);return}
+      if(lk.status==='active'&&lk.assignedTo!==p.id){
+        lockerConflicts.push(`#${lNum} already assigned to ${S.participants.find(x=>x.id===lk.assignedTo)?.last||'?'}`);return;
+      }
+      lk.status='active';lk.assignedTo=p.id;
+      if(!p.lockers.includes(lNum))p.lockers.push(lNum);
+    });
+
+    // Import assigned work dates — only as many as the participant has lockers
+    // (1 locker = 1 contracted shift, 2 lockers = 2 shifts, 3 lockers = 3 shifts)
+    // REPLACE any existing dates for the same month — never accumulate across imports
+    const numLockers = p.lockers.length;
+    const importedDates = (row.workDates||[]).filter(d=>!!d);
+    const validWorkDates = importedDates.slice(0, numLockers);
+    if(importedDates.length > 0){
+      // Determine the month(s) of the imported dates
+      const importMonths = new Set(importedDates.map(d=>{const pd=parseDate(d);return pd?monthKey(pd):null}).filter(Boolean));
+      // Remove any existing assignedWorkDates that fall in those same months (clean slate per month)
+      p.assignedWorkDates = (p.assignedWorkDates||[]).filter(d=>{
+        const pd=parseDate(d);return pd?!importMonths.has(monthKey(pd)):true;
+      });
+      // Now add the capped valid dates
+      validWorkDates.forEach(d=>{if(!p.assignedWorkDates.includes(d))p.assignedWorkDates.push(d)});
+    }
+
+    // New card entry
+    if(row.newCardDate){
+      if(!p.newCards)p.newCards=[];
+      if(!p.newCards.includes(row.newCardDate)){
+        p.newCards.push(row.newCardDate);
+        p.cardReplacementCount=(p.cardReplacementCount||0)+1;
+        cardEntries.push(toTitleCase(row.first)+' '+toTitleCase(row.last)+': card '+fmtDate(row.newCardDate));
+      }
+    }
+
+    // Bar flag
+    if(row.barDate){
+      barFlags.push({name:toTitleCase(row.first)+' '+toTitleCase(row.last),date:row.barDate,pid:p.id});
+      if(!p.importBarFlags)p.importBarFlags=[];
+      p.importBarFlags.push({flaggedDate:row.barDate,reviewed:false,importedOn:todayStr()});
+    }
+  });
+
+  audit('IMPORT','','Roster import 202605: '+added+' added, '+updated+' updated, '+barFlags.length+' bar flags');
+  refreshAll();save();
+
+  // Count total work dates imported
+  const totalWorkDates=rows.reduce((sum,row)=>{
+    const p2=S.participants.find(x=>`${x.last}_${x.first}`.toUpperCase().trim()===`${row.last}_${row.first}`.toUpperCase().trim());
+    return sum+(p2?Math.min((row.workDates||[]).filter(d=>!!d).length,p2.lockers.length):0);
+  },0);
+
+  if(statusEl)statusEl.textContent=`Done: ${added} added, ${updated} updated, ${totalWorkDates} work dates assigned.`;
+  if(previewEl){
+    previewEl.innerHTML=`<div class="alert alert-success" style="margin-top:8px"><i class="ti ti-check"></i> Import complete — ${added} new participants added, ${updated} existing updated, <b>${totalWorkDates} contracted shift dates</b> set as assigned work dates.</div>
+    <div class="alert alert-info"><i class="ti ti-calendar"></i> Assigned work dates are now visible on each participant's profile. Check-ins must be recorded manually — only Clerk can enter retroactive dates.</div>
+    ${barFlags.length?`<div class="alert alert-danger"><i class="ti ti-ban"></i> <b>${barFlags.length} bar flag(s) need review:</b> ${barFlags.map(b=>b.name+' ('+fmtDate(b.date)+')').join(', ')} — Go to each participant profile to complete the bar record.</div>`:''}
+    ${cardEntries.length?`<div class="alert alert-warning"><i class="ti ti-credit-card"></i> New card entries imported: ${cardEntries.join(', ')}</div>`:''}
+    ${lockerConflicts.length?`<div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> Locker conflicts (not imported): ${lockerConflicts.join(', ')}</div>`:''}`;
+  }
+  toast('Roster import complete: '+added+' added, '+updated+' updated, '+totalWorkDates+' work dates assigned');
+}
+
+function toTitleCase(s){return(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}
+
+// ── ARCHIVE / RESTORE ──────────────────────────────────────────────────────
+// Archive is MANUAL only (EC or Clerk clicks), never automatic
+let _archiveSel={};
+
+function pgPastParticipants(){
+  const past=S.participants.filter(p=>p.isPast);
+  return`<div class="alert alert-info"><i class="ti ti-info-circle"></i> Past participants are manually archived by EC or Clerk. They retain all their history and can be restored at any time.</div>
+  <div class="card" style="padding:0"><table><thead><tr><th>Name</th><th>Archived</th><th>Reason</th><th>Last lockers</th><th></th></tr></thead><tbody>
+  ${past.length?past.map(p=>`<tr>
+    <td><div class="avatar" style="width:24px;height:24px;font-size:10px;display:inline-flex;vertical-align:middle;margin-right:6px">${p.first[0]}${p.last[0]}</div>${p.first} ${p.last}</td>
+    <td style="color:#888">${fmtDate(p.pastSince||'')}</td>
+    <td style="font-size:12px;color:#888">${p.pastReason||'—'}</td>
+    <td style="font-size:12px">${(p.oldLockers||[]).map(n=>'#'+n).join(', ')||'—'}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-sm btn-success" onclick="reinstateP('${p.id}')"><i class="ti ti-user-check"></i> Restore</button>
+      <button class="btn btn-sm" onclick="viewP('${p.id}')" style="margin-left:4px"><i class="ti ti-eye"></i></button>
+    </td>
+  </tr>`).join(''):
+  '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px">No past participants.</td></tr>'}
+  </tbody></table></div>`;
+}
+
+function pgParticipants(){
+  const ps=S.participants.filter(p=>!p.isPast);
+  const hasBarFlags=ps.some(p=>(p.importBarFlags||[]).some(f=>!f.reviewed));
+  return`${hasBarFlags?`<div class="alert alert-danger no-print"><i class="ti ti-ban"></i> Some participants have unreviewed bar flags from import. Go to their profile to complete the bar record. <a onclick="filterPS2('barflag')" style="cursor:pointer;font-weight:500">Show flagged only</a></div>`:''}
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="search-bar"><i class="ti ti-search"></i><input type="text" id="ps-q" placeholder="Search by name…" oninput="filterPS()"></div>
+    <select id="ps-f" onchange="filterPS()" style="width:140px"><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="barred">Barred</option></select>
+    <button class="btn btn-sm btn-warning" onclick="archiveSelected()" id="archive-btn" style="display:none"><i class="ti ti-archive"></i> Archive selected</button>
+  </div>
+  <div class="card" style="padding:0"><table><thead><tr>
+    <th style="width:32px"><input type="checkbox" id="ps-all" onchange="toggleAllPS(this.checked)" title="Select all"></th>
+    <th>Name</th><th>Status</th><th>Lockers</th><th>Renewal</th><th>Work</th><th>Credits</th><th style="width:100px"></th>
+  </tr></thead><tbody id="ps-body">${pRows(ps)}</tbody></table></div>`;
+}
+
+function toggleAllPS(checked){
+  const ps=S.participants.filter(p=>!p.isPast);
+  ps.forEach(p=>{if(checked)_archiveSel[p.id]=true;else delete _archiveSel[p.id]});
+  document.querySelectorAll('.ps-chk').forEach(cb=>cb.checked=checked);
+  document.getElementById('archive-btn')&&(document.getElementById('archive-btn').style.display=Object.keys(_archiveSel).length?'inline-flex':'none');
+}
+
+function togglePSRow(id,checked){
+  if(checked)_archiveSel[id]=true;else delete _archiveSel[id];
+  const btn=document.getElementById('archive-btn');
+  if(btn)btn.style.display=Object.keys(_archiveSel).length?'inline-flex':'none';
+}
+
+function filterPS(){
+  const q=(document.getElementById('ps-q')||{value:''}).value.toLowerCase();
+  const f=(document.getElementById('ps-f')||{value:''}).value;
+  const res=S.participants.filter(p=>!p.isPast&&(!q||`${p.first} ${p.last}`.toLowerCase().includes(q))&&(!f||p.status===f));
+  const el=document.getElementById('ps-body');if(el)el.innerHTML=pRows(res);
+}
+function filterPS2(filter){
+  const res=filter==='barflag'?S.participants.filter(p=>!p.isPast&&(p.importBarFlags||[]).some(f=>!f.reviewed)):S.participants.filter(p=>!p.isPast);
+  const el=document.getElementById('ps-body');if(el)el.innerHTML=pRows(res);
+}
+
+function pRows(ps){
+  const cm=monthKey(SYS_DATE);
+  return ps.map(p=>{
+    const rd=parseDate(p.renewalDate);const dl=rd?daysBetween(SYS_DATE,rd):null;const warn=dl!==null&&dl<=7&&dl>=0;
+    const assignedThisMo=(p.assignedWorkDates||[]).filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===cm});
+    const checkedIn=(S.attendance||[]).filter(a=>a.participantId===p.id&&a.type==='work'&&monthKey(parseDate(a.recordedDate||a.date)||SYS_DATE)===cm).map(a=>a.recordedDate||a.date);
+    const metCount=assignedThisMo.filter(d=>checkedIn.includes(d)).length;
+    const hasBarFlag=(p.importBarFlags||[]).some(f=>!f.reviewed);
+    const cardCount=p.cardReplacementCount||0;
+    const sel=_archiveSel[p.id]||false;
+    return`<tr style="cursor:pointer" onclick="viewP('${p.id}')">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="ps-chk" ${sel?'checked':''} onchange="togglePSRow('${p.id}',this.checked)"></td>
+      <td><span class="status-dot dot-${p.status}"></span>${p.first} ${p.last}${hasBarFlag?' <span class="badge badge-inactive" style="font-size:10px">⚑ bar review</span>':''}${cardCount>=3?' <span class="badge" style="background:#faeeda;color:#854f0b;font-size:10px">⚠ max cards</span>':''}</td>
+      <td><span class="badge badge-${p.status}">${p.status}</span></td>
+      <td>${p.lockers.map(n=>`<span class="pill-locker">#${n}</span>`).join('')||'—'}</td>
+      <td style="color:${warn?'#ba7517':'inherit'}">${fmtDate(p.renewalDate)}${warn?' ⚠':''}</td>
+      <td style="color:${metCount>=p.lockers.length?'#3b6d11':'#e24b4a'}">${metCount}/${p.lockers.length}</td>
+      <td>${p.credits||0}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        <button class="btn btn-sm" onclick="viewP('${p.id}')"><i class="ti ti-eye"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="openModal('bar','${p.id}')"><i class="ti ti-ban"></i></button>
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:#888;padding:20px">No results.</td></tr>';
+}
+
+function archiveSelected(){
+  const ids=Object.keys(_archiveSel);
+  if(!ids.length){alert('Select at least one participant first.');return}
+  const names=ids.map(id=>{const p=S.participants.find(x=>x.id===id);return p?p.first+' '+p.last:id}).join(', ');
+  const old=document.getElementById('_confirm-banner');if(old)old.remove();
+  const banner=document.createElement('div');
+  banner.id='_confirm-banner';
+  banner.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:16px 22px;border-radius:10px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);max-width:480px;text-align:center';
+  banner.innerHTML='<div style="margin-bottom:12px">Archive <b>'+ids.length+'</b> participant(s)?<br><span style="font-size:11px;opacity:.75">'+names+'</span><br><span style="font-size:11px;opacity:.6">They can be restored from Past Participants.</span></div>'
+    +'<div style="display:flex;gap:8px;justify-content:center">'
+    +'<button style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px" onclick="document.getElementById(\'_confirm-banner\').remove()">Cancel</button>'
+    +'<button style="background:#e24b4a;border:none;color:#fff;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500" onclick="doArchiveBatch()">Archive</button>'
+    +'</div>';
+  document.body.appendChild(banner);
+}
+function doArchiveBatch(){
+  const el=document.getElementById('_confirm-banner');if(el)el.remove();
+  if(!canEC('canArchiveParticipant')){toast('Your account does not have permission to archive participants.');return}
+  const ids=Object.keys(_archiveSel);
+  if(!ids.length)return;
+  ids.forEach(id=>moveToPast(id,'Manually archived',true));
+  _archiveSel={};
+  refreshAll();save();S.page='participants';render();
+  toast(ids.length+' participant(s) archived.');
+}
+
+// ── NEW CARD TRACKING ──────────────────────────────────────────────────────
+const MAX_CARD_REPLACEMENTS=2; // 3rd triggers block
+
+function mNewCard(id){
+  const p=S.participants.find(x=>x.id===id);if(!p)return'';
+  const count=p.cardReplacementCount||0;
+  const cards=p.newCards||[];
+  const maxed=count>=MAX_CARD_REPLACEMENTS+1;
+  return`<div class="modal-title"><i class="ti ti-credit-card"></i> Card replacement — ${p.first} ${p.last}</div>
+  <div class="metric" style="margin-bottom:12px"><div class="metric-label">Replacements issued</div><div class="metric-value" style="color:${count>MAX_CARD_REPLACEMENTS?'#e24b4a':count===MAX_CARD_REPLACEMENTS?'#ba7517':'#1a1a1a'}">${count} / ${MAX_CARD_REPLACEMENTS+1} max</div></div>
+  ${maxed?`<div class="alert alert-danger"><i class="ti ti-ban"></i> Maximum card replacements reached. No further replacements allowed without a clerk reset.</div>`:''}
+  ${count===MAX_CARD_REPLACEMENTS?`<div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> This is the final allowed replacement. After this, the participant will be blocked from further replacements.</div>`:''}
+  <div style="margin-bottom:10px"><div style="font-size:12px;font-weight:500;margin-bottom:6px">Card replacement history</div>
+    ${cards.length?cards.map(d=>`<span class="tag"><i class="ti ti-credit-card" style="font-size:11px"></i>${fmtDate(d)}</span>`).join(''):'<span style="color:#888;font-size:12px">None</span>'}
+  </div>
+  ${!maxed?`<div class="form-group"><label class="form-label">Date of replacement</label><input type="date" id="nc-date" value="${todayStr()}"></div>`:''}
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn-sm" onclick="closeModal()">Close</button>
+    ${isClerk()?`<button class="btn btn-sm btn-warning" onclick="resetCardCount('${id}')">Reset count</button>`:''}
+    ${!maxed?`<button class="btn btn-sm btn-primary" onclick="doIssueNewCard('${id}')"><i class="ti ti-check"></i> Record replacement</button>`:''}
+  </div>`;
+}
+
+function doIssueNewCard(id){
+  const p=S.participants.find(x=>x.id===id);if(!p)return;
+  const count=p.cardReplacementCount||0;
+  if(count>MAX_CARD_REPLACEMENTS){alert('Maximum replacements reached. Clerk must reset.');return}
+  const d=(document.getElementById('nc-date')||{value:todayStr()}).value||todayStr();
+  if(!p.newCards)p.newCards=[];
+  p.newCards.push(d);
+  p.cardReplacementCount=(count||0)+1;
+  audit('NEW_CARD',id,'Card replacement #'+p.cardReplacementCount+' on '+fmtDate(d));
+  if(p.cardReplacementCount>MAX_CARD_REPLACEMENTS){
+    toast('⚠ '+p.first+' has now used all '+( MAX_CARD_REPLACEMENTS+1)+' card replacements. Account flagged.');
+  }
+  save();closeModal();openModal('view-participant',id);
+  toast('Card replacement recorded for '+p.first);
+}
+
+function resetCardCount(id){
+  const p=S.participants.find(x=>x.id===id);if(!p)return;
+  if(!isClerk()){alert('Only Clerk (Admin) can reset card count.');return}
+  
+  p.cardReplacementCount=0;
+  audit('CARD_RESET',id,'Card replacement count reset by clerk');
+  save();closeModal();openModal('view-participant',id);
+  toast('Card count reset for '+p.first);
+}
 
 // ── MODALS ─────────────────────────────────────────────────────────────────
 function openModal(type,id){
@@ -819,7 +1309,9 @@ function openModal(type,id){
     'bar':()=>mBar(id),'renew':()=>mRenew(id),'missed-date':()=>mMissedDate(id),
     'adjust-credits':()=>mAdjCredits(id),'checkin-log':()=>mCheckinLog(id),
     'broadcast':()=>mBroadcast(),'locker-issue':()=>mLockerIssue(),
-    'assign-work-date':()=>mAssignWorkDate(id),'move-to-past':()=>mMoveToPast(id),'submit-meeting-notes':()=>mSubmitMeetingNotes(),
+    'assign-work-date':()=>mAssignWorkDate(id),'move-to-past':()=>mMoveToPast(id),
+    'submit-meeting-notes':()=>mSubmitMeetingNotes(),'new-card':()=>mNewCard(id),
+    'end-bar':()=>mEndBar(id),'appeal-bar':()=>mAppealBar(id),
   }[type];
   if(!fn)return;
   let root=document.getElementById('_modal');if(!root){root=document.createElement('div');root.id='_modal';document.body.appendChild(root)}
@@ -856,7 +1348,7 @@ function mViewP(id){
   </div>
   <div class="divider"></div>
   <div style="margin-bottom:10px"><div style="font-size:12px;font-weight:500;margin-bottom:5px">Active lockers</div>
-    ${p.lockers.map(n=>`<span class="pill-locker" style="cursor:pointer" onclick="if(confirm('Unassign locker #${n} from ${p.first}?'))doUnassignLocker(${n},'${p.id}')">#${n} ×</span>`).join('')||'<span style="color:#888;font-size:12px">None</span>'}
+    ${p.lockers.map(n=>`<span class="pill-locker" style="cursor:pointer" onclick="doUnassignLocker(${n},'${p.id}')">#${n} ×</span>`).join('')||'<span style="color:#888;font-size:12px">None</span>'}
     ${p.barredLockers?.length?`<div style="margin-top:5px;font-size:12px;color:#854f0b">Barred: ${p.barredLockers.map(n=>'#'+n).join(', ')}</div>`:''}
   </div>
   <div style="margin-bottom:10px"><div style="font-size:12px;font-weight:500;margin-bottom:5px">Assigned work dates this month</div>
@@ -868,6 +1360,8 @@ function mViewP(id){
     <span class="badge ${p.plStatus?'badge-active':'badge-inactive'}" style="margin-left:4px">PL ${p.plStatus?'✓':'✗'}</span>
   </div>
   ${(p.bars||[]).length?`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:500;margin-bottom:5px">Bar history</div>${p.bars.map(b=>`<div style="font-size:12px;padding:3px 0;border-bottom:.5px solid rgba(0,0,0,.07)"><span style="color:${b.permanent?'#a32d2d':'#854f0b'}">${b.permanent?'Permanent':fmtDate(b.startDate)+'–'+fmtDate(b.endDate)}</span>: ${b.reason} <span style="color:#aaa;font-size:10px">(${b.issuedBy||'EC'})</span></div>`).join('')}</div>`:''}
+  ${(p.importBarFlags||[]).some(f=>!f.reviewed)?`<div class="alert alert-danger"><i class="ti ti-ban"></i> <b>Unreviewed bar flag from import</b> — date ${fmtDate((p.importBarFlags.find(f=>!f.reviewed)||{}).flaggedDate)}. Issue the bar record then mark reviewed.<div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-sm btn-danger" onclick="openModal('bar','${p.id}')">Issue bar</button><button class="btn btn-sm" onclick="markBarFlagReviewed('${p.id}')">Mark reviewed</button></div></div>`:''}
+  ${(p.cardReplacementCount||0)>0||true?`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:500;margin-bottom:5px">Card replacements <span style="color:${(p.cardReplacementCount||0)>MAX_CARD_REPLACEMENTS?'#e24b4a':'#888'}">(${p.cardReplacementCount||0} of ${MAX_CARD_REPLACEMENTS+1} used)</span></div>${(p.newCards||[]).map(d=>`<span class="tag"><i class="ti ti-credit-card" style="font-size:11px"></i>${fmtDate(d)}</span>`).join('')||'<span style="color:#888;font-size:12px">None</span>'}${(p.cardReplacementCount||0)>MAX_CARD_REPLACEMENTS?'<span class="badge badge-inactive" style="margin-left:6px">Max reached — clerk reset required</span>':''}</div>`:''}
   <div class="divider"></div>
   <div style="display:flex;gap:6px;flex-wrap:wrap">
     ${!p.isPast?`
@@ -876,8 +1370,9 @@ function mViewP(id){
     <button class="btn btn-sm" onclick="openModal('assign-work-date','${p.id}')"><i class="ti ti-calendar-plus"></i> Assign work date</button>
     <button class="btn btn-sm btn-danger" onclick="closeModal();openModal('bar','${p.id}')"><i class="ti ti-ban"></i> Bar</button>
     <button class="btn btn-sm" onclick="openModal('missed-date','${p.id}')"><i class="ti ti-alert-triangle"></i> Missed date</button>
+    <button class="btn btn-sm" onclick="openModal('new-card','${p.id}')"><i class="ti ti-credit-card"></i> Card replacement</button>
     ${isClerk()?`<button class="btn btn-sm" onclick="openModal('adjust-credits','${p.id}')"><i class="ti ti-coin"></i> Credits</button>`:''}
-    <button class="btn btn-sm btn-warning" onclick="openModal('move-to-past','${p.id}')"><i class="ti ti-user-off"></i> Move to past</button>`:'<button class="btn btn-sm btn-success" onclick="reinstateP(\''+p.id+'\')" >Reinstate</button>'}
+    <button class="btn btn-sm btn-warning" onclick="openModal('move-to-past','${p.id}')"><i class="ti ti-archive"></i> Archive</button>`:'<button class="btn btn-sm btn-success" onclick="reinstateP(\''+p.id+'\')" >Restore</button>'}
     <button class="btn btn-sm" onclick="openModal('checkin-log','${p.id}')"><i class="ti ti-history"></i> Log</button>
     <button class="btn btn-sm" onclick="closeModal()">Close</button>
   </div>`;
@@ -894,7 +1389,7 @@ function doAddP(){const first=(document.getElementById('np-first')||{value:''}).
 
 // ── ASSIGN LOCKER MODAL ────────────────────────────────────────────────────
 function mAssignLocker(id){const p=S.participants.find(x=>x.id===id);if(!p)return'';const avail=S.lockers.filter(l=>l.status==='available'&&l.working);if(p.lockers.length>=3)return`<div class="modal-title">Assign locker</div><div class="alert alert-danger">Maximum 3 lockers reached.</div><button class="btn btn-sm" onclick="closeModal()">Close</button>`;return`<div class="modal-title"><i class="ti ti-lock-plus"></i> Assign locker — ${p.first} ${p.last}</div><div class="alert alert-info">Has ${p.lockers.length} locker(s). Max 3. ${avail.length} available in inventory.</div><div class="form-group"><label class="form-label">Select locker</label><select id="lk-pick"><option value="">— choose —</option>${avail.slice(0,100).map(l=>`<option value="${l.number}">#${l.number}</option>`).join('')}</select></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-sm btn-primary" onclick="doAssign('${id}')">Assign</button></div>`}
-function doAssign(id){const n=parseInt((document.getElementById('lk-pick')||{value:''}).value);if(!n){alert('Select a locker.');return}const p=S.participants.find(x=>x.id===id);const l=S.lockers.find(x=>x.number===n);if(!p||!l||l.status!=='available'){alert('Locker not available.');return}l.status='active';l.assignedTo=id;p.lockers.push(n);audit('ASSIGN_LOCKER',id,'Locker #'+n+' assigned');refreshAll();save();closeModal();openModal('view-participant',id);toast('Locker #'+n+' assigned to '+p.first)}
+function doAssign(id){if(!canEC('canAssignLocker')){toast('Your account does not have permission to assign lockers.');return}const n=parseInt((document.getElementById('lk-pick')||{value:''}).value);if(!n){alert('Select a locker.');return}const p=S.participants.find(x=>x.id===id);const l=S.lockers.find(x=>x.number===n);if(!p||!l||l.status!=='available'){alert('Locker not available.');return}l.status='active';l.assignedTo=id;p.lockers.push(n);audit('ASSIGN_LOCKER',id,'Locker #'+n+' assigned');refreshAll();save();closeModal();openModal('view-participant',id);toast('Locker #'+n+' assigned to '+p.first)}
 
 // ── ASSIGN WORK DATE MODAL ─────────────────────────────────────────────────
 function mAssignWorkDate(id){const p=S.participants.find(x=>x.id===id);if(!p)return'';const cm=monthKey(SYS_DATE);const thisMonthDates=(p.assignedWorkDates||[]).filter(d=>{const pd=parseDate(d);return pd&&monthKey(pd)===cm});return`<div class="modal-title"><i class="ti ti-calendar-plus"></i> Assign work date — ${p.first} ${p.last}</div>
@@ -904,20 +1399,81 @@ function mAssignWorkDate(id){const p=S.participants.find(x=>x.id===id);if(!p)ret
   </div>
   <div class="form-group"><label class="form-label">New date to assign</label><input type="date" id="awd-date" value="${todayStr()}"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-sm btn-primary" onclick="doAssignWorkDate('${id}')">Assign date</button></div>`}
-function doAssignWorkDate(id){const d=(document.getElementById('awd-date')||{value:todayStr()}).value;if(!d){alert('Select a date.');return}const p=S.participants.find(x=>x.id===id);if(!p)return;if(!p.assignedWorkDates)p.assignedWorkDates=[];if(p.assignedWorkDates.includes(d)){alert('Date already assigned.');return}p.assignedWorkDates.push(d);audit('ASSIGN_WORK_DATE',id,'Work date assigned: '+fmtDate(d));refreshAll();save();closeModal();openModal('view-participant',id);toast('Work date assigned: '+fmtDate(d))}
+function doAssignWorkDate(id){if(!canEC('canAssignWorkDate')){toast('Your account does not have permission to assign work dates.');return}const d=(document.getElementById('awd-date')||{value:todayStr()}).value;if(!d){alert('Select a date.');return}const p=S.participants.find(x=>x.id===id);if(!p)return;if(!p.assignedWorkDates)p.assignedWorkDates=[];if(p.assignedWorkDates.includes(d)){alert('Date already assigned.');return}p.assignedWorkDates.push(d);audit('ASSIGN_WORK_DATE',id,'Work date assigned: '+fmtDate(d));refreshAll();save();closeModal();openModal('view-participant',id);toast('Work date assigned: '+fmtDate(d))}
 function removeWorkDate(id,d){const p=S.participants.find(x=>x.id===id);if(!p)return;p.assignedWorkDates=(p.assignedWorkDates||[]).filter(x=>x!==d);audit('REMOVE_WORK_DATE',id,'Work date removed: '+fmtDate(d));refreshAll();save();closeModal();openModal('view-participant',id);toast('Work date removed.')}
 
 // ── BAR MODAL ─────────────────────────────────────────────────────────────
-function mBar(id){const p=S.participants.find(x=>x.id===id);if(!p)return'';const end30=addDays(todayStr(),30);return`<div class="modal-title"><i class="ti ti-ban"></i> Issue bar — ${p.first} ${p.last}</div><div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> A bar means the participant loses access to their locker and its contents. Temporary bars auto-expire after 30 days but remain on record. Only ECs/Clerks can issue bars.</div><div class="form-group"><label class="form-label">Bar type</label><select id="bar-type" onchange="document.getElementById('bar-end-row').style.display=this.value==='permanent'?'none':'block'"><option value="temporary">Temporary (30 days)</option><option value="permanent">Permanent</option></select></div><div class="form-group" id="bar-end-row"><label class="form-label">End date</label><input type="date" id="bar-end" value="${end30}"></div><div class="form-group"><label class="form-label">Reason *</label><input type="text" id="bar-reason" placeholder="Describe the violation or reason"></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-sm btn-danger" onclick="doBar('${id}')"><i class="ti ti-ban"></i> Issue bar</button></div>`}
-function doBar(id){const p=S.participants.find(x=>x.id===id);if(!p)return;const type=(document.getElementById('bar-type')||{value:'temporary'}).value;const reason=(document.getElementById('bar-reason')||{value:''}).value.trim();if(!reason){alert('Enter a reason.');return}const end=type==='temporary'?(document.getElementById('bar-end')||{value:addDays(todayStr(),30)}).value:null;if(!p.bars)p.bars=[];p.bars.push({id:'b'+Date.now(),startDate:todayStr(),endDate:end,permanent:type==='permanent',reason,issuedBy:S.currentUser?.name||'EC'});audit('BAR_ISSUED',id,(type==='permanent'?'Permanent':'Temp')+ ' bar issued: '+reason);refreshAll();save();closeModal();render();toast('Bar issued to '+p.first+' '+p.last)}
+function mBar(id){const p=S.participants.find(x=>x.id===id);if(!p)return'';
+  return`<div class="modal-title"><i class="ti ti-ban"></i> Issue bar — ${p.first} ${p.last}</div>
+  <div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> A bar means the participant loses access to their locker and its contents. All bars remain permanently on record. Only ECs/Clerks can issue bars.</div>
+  <div class="form-group"><label class="form-label">Bar type</label>
+    <select id="bar-type" onchange="updateBarTypeUI()">
+      <option value="temporary">Temporary (custom days)</option>
+      <option value="permanent">Permanent</option>
+    </select>
+  </div>
+  <div id="bar-temp-opts">
+    <div class="form-group"><label class="form-label">Bar start date</label>
+      <input type="date" id="bar-start" value="${todayStr()}" oninput="updateBarEndPreview()">
+    </div>
+    <div class="form-group"><label class="form-label">Number of days</label>
+      <input type="number" id="bar-days" value="30" min="1" max="365" oninput="updateBarEndPreview()">
+    </div>
+    <div id="bar-end-preview" style="font-size:12px;color:#666;margin-bottom:12px;padding:6px 10px;background:#f5f5f3;border-radius:6px">Bar ends: <b id="bar-end-label">—</b></div>
+  </div>
+  <div class="form-group"><label class="form-label">Reason *</label>
+    <input type="text" id="bar-reason" placeholder="Describe the violation or reason">
+  </div>
+  <div class="form-group"><label class="form-label">Your password (required to confirm)</label>
+    <input type="password" id="bar-pw" placeholder="Enter your EC/Clerk password">
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-sm btn-danger" onclick="doBar('${id}')"><i class="ti ti-ban"></i> Issue bar</button>
+  </div>`;
+}
+function updateBarTypeUI(){
+  const t=(document.getElementById('bar-type')||{value:'temporary'}).value;
+  const d=document.getElementById('bar-temp-opts');if(d)d.style.display=t==='permanent'?'none':'block';
+}
+function updateBarEndPreview(){
+  const start=(document.getElementById('bar-start')||{value:todayStr()}).value||todayStr();
+  const days=parseInt((document.getElementById('bar-days')||{value:30}).value)||30;
+  const end=addDays(start,days);
+  const el=document.getElementById('bar-end-label');if(el)el.textContent=fmtDate(end);
+}
+function doBar(id){
+  const p=S.participants.find(x=>x.id===id);if(!p)return;
+  if(!canEC('canIssueBar')){toast('Your account does not have permission to issue bars.');return}
+  const type=(document.getElementById('bar-type')||{value:'temporary'}).value;
+  const reason=(document.getElementById('bar-reason')||{value:''}).value.trim();
+  const pw=(document.getElementById('bar-pw')||{value:''}).value;
+  if(!reason){alert('Enter a reason.');return}
+  if(!pw){alert('Enter your password to confirm.');return}
+  const u=S.users.find(x=>x.id===S.currentUser?.id&&x.password===pw);
+  if(!u){alert('Incorrect password. Bar not issued.');return}
+  if(!p.bars)p.bars=[];
+  const barId='b'+Date.now();
+  if(type==='permanent'){
+    p.bars.push({id:barId,startDate:todayStr(),endDate:null,permanent:true,reason,issuedBy:S.currentUser?.name||'EC',events:[]});
+    audit('BAR_ISSUED',id,'Permanent bar issued: '+reason);
+  } else {
+    const start=(document.getElementById('bar-start')||{value:todayStr()}).value||todayStr();
+    const days=parseInt((document.getElementById('bar-days')||{value:30}).value)||30;
+    const end=addDays(start,days);
+    p.bars.push({id:barId,startDate:start,endDate:end,permanent:false,days,reason,issuedBy:S.currentUser?.name||'EC',events:[]});
+    audit('BAR_ISSUED',id,days+'d bar from '+fmtDate(start)+': '+reason);
+  }
+  refreshAll();save();closeModal();render();toast('Bar issued to '+p.first+' '+p.last);
+}
 
 // ── RENEW MODAL ───────────────────────────────────────────────────────────
 function mRenew(id){const p=S.participants.find(x=>x.id===id);if(!p)return'';const nm=new Date(SYS_DATE);nm.setMonth(nm.getMonth()+1);const nr=nm.getFullYear()+'-'+String(nm.getMonth()+1).padStart(2,'0')+'-15';return`<div class="modal-title"><i class="ti ti-refresh"></i> Renew — ${p.first} ${p.last}</div><div class="alert alert-info">Current renewal: ${fmtDate(p.renewalDate)}. New renewal sets the date by which they must renew again next month (by the 15th).</div><div class="form-group"><label class="form-label">New renewal date</label><input type="date" id="rn-date" value="${nr}"></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-sm btn-primary" onclick="doRenew('${id}')">Confirm renewal</button></div>`}
-function doRenew(id){const d=(document.getElementById('rn-date')||{value:''}).value;if(!d){alert('Select date.');return}const p=S.participants.find(x=>x.id===id);if(!p)return;p.renewalDate=d;audit('RENEWAL',id,'Renewed — new date: '+fmtDate(d));refreshAll();save();closeModal();render();toast('Renewed: '+p.first+' → '+fmtDate(d))}
+function doRenew(id){if(!canEC('canRenew')){toast('Your account does not have permission to process renewals.');return}const d=(document.getElementById('rn-date')||{value:''}).value;if(!d){alert('Select date.');return}const p=S.participants.find(x=>x.id===id);if(!p)return;p.renewalDate=d;audit('RENEWAL',id,'Renewed — new date: '+fmtDate(d));refreshAll();save();closeModal();render();toast('Renewed: '+p.first+' → '+fmtDate(d))}
 
 // ── MISSED DATE MODAL ─────────────────────────────────────────────────────
 function mMissedDate(id){const p=S.participants.find(x=>x.id===id);if(!p)return'';const deadline=addDays(todayStr(),14);const openWarn=(p.missedDateWarnings||[]).some(w=>!w.resolved);return`<div class="modal-title"><i class="ti ti-alert-triangle"></i> Mark missed date — ${p.first} ${p.last}</div><div class="alert alert-warning">Issues a 14-day warning. If the participant doesn't check in with a replacement date within 14 days, a 30-day bar is automatically applied.</div>${openWarn?`<div class="alert alert-danger">Already has an open warning. Resolve it first.</div>`:''}<div class="form-group"><label class="form-label">Missed work date</label><input type="date" id="md-date" value="${todayStr()}"></div><p style="font-size:12px;color:#888;margin-bottom:12px">Replacement deadline: <b>${fmtDate(deadline)}</b></p><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-sm btn-danger" ${openWarn?'disabled':''} onclick="doMissedDate('${id}')">Issue warning</button></div>`}
-function doMissedDate(id){const p=S.participants.find(x=>x.id===id);if(!p)return;if((p.missedDateWarnings||[]).some(w=>!w.resolved)){alert('Resolve existing warning first.');return}const d=(document.getElementById('md-date')||{value:todayStr()}).value||todayStr();if(!p.missedDateWarnings)p.missedDateWarnings=[];const dl=addDays(todayStr(),14);p.missedDateWarnings.push({missedDate:d,deadline:dl,resolved:false,issuedDate:todayStr()});audit('MISSED_DATE_WARNING',id,'Missed date warning: '+fmtDate(d)+', deadline '+fmtDate(dl));refreshAll();save();closeModal();toast('Warning issued — 14-day deadline set.')}
+function doMissedDate(id){if(!canEC('canIssueMissedDate')){toast('Your account does not have permission to issue missed-date warnings.');return}const p=S.participants.find(x=>x.id===id);if(!p)return;if((p.missedDateWarnings||[]).some(w=>!w.resolved)){alert('Resolve existing warning first.');return}const d=(document.getElementById('md-date')||{value:todayStr()}).value||todayStr();if(!p.missedDateWarnings)p.missedDateWarnings=[];const dl=addDays(todayStr(),14);p.missedDateWarnings.push({missedDate:d,deadline:dl,resolved:false,issuedDate:todayStr()});audit('MISSED_DATE_WARNING',id,'Missed date warning: '+fmtDate(d)+', deadline '+fmtDate(dl));refreshAll();save();closeModal();toast('Warning issued — 14-day deadline set.')}
 
 // ── ADJUST CREDITS MODAL (Clerk only) ─────────────────────────────────────
 function mAdjCredits(id){
@@ -949,10 +1505,83 @@ function doLockerIssue(){const n=parseInt((document.getElementById('li-num')||{v
 
 // ── MOVE TO PAST MODAL ─────────────────────────────────────────────────────
 function mMoveToPast(id){const p=S.participants.find(x=>x.id===id);if(!p)return'';return`<div class="modal-title"><i class="ti ti-user-off"></i> Move to past — ${p.first} ${p.last}</div><div class="alert alert-warning"><i class="ti ti-alert-triangle"></i> This will release all their lockers and remove them from active participants. They can be reinstated later. This action is logged.</div><div class="form-group"><label class="form-label">Reason</label><input type="text" id="mtp-reason" placeholder="Voluntary exit, program completion, etc."></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-sm" onclick="closeModal()">Cancel</button><button class="btn btn-sm btn-danger" onclick="doMoveToPast('${id}')"><i class="ti ti-user-off"></i> Confirm</button></div>`}
-function doMoveToPast(id){const reason=(document.getElementById('mtp-reason')||{value:''}).value.trim()||'Moved by EC';closeModal();moveToPast(id,reason)}
+function markBarFlagReviewed(id){const p=S.participants.find(x=>x.id===id);if(!p)return;(p.importBarFlags||[]).forEach(f=>{f.reviewed=true});audit('BAR_FLAG_REVIEWED',id,'Import bar flag marked reviewed');save();render();toast('Bar flag marked reviewed.')}
+function doMoveToPast(id){const reason=(document.getElementById('mtp-reason')||{value:''}).value.trim()||'Archived by EC';closeModal();moveToPast(id,reason,false)}
 
 // ── BOOT ───────────────────────────────────────────────────────────────────
+function mEndBar(compositeId){
+  const[pid,barId]=compositeId.split('|');
+  const p=S.participants.find(x=>x.id===pid);const b=(p?.bars||[]).find(x=>x.id===barId);
+  if(!p||!b)return'<p>Not found.</p>';
+  return`<div class="modal-title"><i class="ti ti-circle-check"></i> End bar early &mdash; ${p.first} ${p.last}</div>
+  <div class="alert alert-info"><i class="ti ti-info-circle"></i> Ending a bar early removes the participant's barred status immediately. The full bar record and this action remain permanently on file.</div>
+  <div style="font-size:12px;background:#f5f5f3;border-radius:6px;padding:8px 10px;margin-bottom:12px">
+    <div><b>Original bar:</b> ${fmtDate(b.startDate)} &mdash; ${b.reason}</div>
+    <div style="color:#888;font-size:11px;margin-top:2px">${b.permanent?'Permanent bar':'Scheduled to end '+fmtDate(b.endDate)}</div>
+  </div>
+  <div class="form-group"><label class="form-label">End date</label><input type="date" id="eb-date" value="${todayStr()}"></div>
+  <div class="form-group"><label class="form-label">Reason for ending early *</label><input type="text" id="eb-reason" placeholder="Conditions met, appeal approved, etc."></div>
+  <div class="form-group"><label class="form-label">Your password (required to confirm)</label><input type="password" id="eb-pw" placeholder="Enter your EC/Clerk password"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-sm btn-success" onclick="doEndBar('${pid}','${barId}')"><i class="ti ti-circle-check"></i> End bar</button>
+  </div>`;
+}
+function doEndBar(pid,barId){
+  if(!canEC('canEndBar')){toast('Your account does not have permission to end bars.');return}
+  const pw=(document.getElementById('eb-pw')||{value:''}).value;
+  const reason=(document.getElementById('eb-reason')||{value:''}).value.trim();
+  const date=(document.getElementById('eb-date')||{value:todayStr()}).value||todayStr();
+  if(!reason){alert('Enter a reason.');return}
+  if(!pw){alert('Enter your password to confirm.');return}
+  const u=S.users.find(x=>x.id===S.currentUser?.id&&x.password===pw);
+  if(!u){alert('Incorrect password.');return}
+  const p=S.participants.find(x=>x.id===pid);const b=(p?.bars||[]).find(x=>x.id===barId);
+  if(!p||!b){alert('Bar not found.');return}
+  if(!b.events)b.events=[];
+  b.events.push({type:'end',date,by:S.currentUser.name||'EC',reason});
+  audit('BAR_ENDED',pid,'Bar ended early on '+fmtDate(date)+': '+reason);
+  refreshAll();save();closeModal();render();
+  toast('Bar ended for '+p.first+' '+p.last);
+}
+function mAppealBar(compositeId){
+  const[pid,barId]=compositeId.split('|');
+  const p=S.participants.find(x=>x.id===pid);const b=(p?.bars||[]).find(x=>x.id===barId);
+  if(!p||!b)return'<p>Not found.</p>';
+  return`<div class="modal-title"><i class="ti ti-scale"></i> Record successful appeal &mdash; ${p.first} ${p.last}</div>
+  <div class="alert alert-info"><i class="ti ti-info-circle"></i> Only record a successful appeal here. Unsuccessful appeals do not need to be entered. The bar record and this outcome remain permanently on file.</div>
+  <div style="font-size:12px;background:#f5f5f3;border-radius:6px;padding:8px 10px;margin-bottom:12px">
+    <div><b>Bar:</b> ${fmtDate(b.startDate)} &mdash; ${b.reason}</div>
+  </div>
+  <div class="form-group"><label class="form-label">Appeal decision date</label><input type="date" id="ap-date" value="${todayStr()}"></div>
+  <div class="form-group"><label class="form-label">Appeal outcome / notes *</label><input type="text" id="ap-reason" placeholder="e.g. Appeal upheld by committee — bar lifted"></div>
+  <div class="form-group"><label class="form-label">Decided by</label><input type="text" id="ap-by" value="${S.currentUser?.name||''}" placeholder="Name or body that ruled on appeal"></div>
+  <div class="form-group"><label class="form-label">Your password (required to confirm)</label><input type="password" id="ap-pw" placeholder="Enter your EC/Clerk password"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-sm" style="background:#e6f1fb;color:#185fa5;border-color:#b5d4f4" onclick="doAppealBar('${pid}','${barId}')"><i class="ti ti-scale"></i> Record appeal</button>
+  </div>`;
+}
+function doAppealBar(pid,barId){
+  const pw=(document.getElementById('ap-pw')||{value:''}).value;
+  const reason=(document.getElementById('ap-reason')||{value:''}).value.trim();
+  const date=(document.getElementById('ap-date')||{value:todayStr()}).value||todayStr();
+  const by=(document.getElementById('ap-by')||{value:''}).value.trim()||S.currentUser?.name||'EC';
+  if(!reason){alert('Enter the appeal outcome.');return}
+  if(!pw){alert('Enter your password to confirm.');return}
+  const u=S.users.find(x=>x.id===S.currentUser?.id&&x.password===pw);
+  if(!u){alert('Incorrect password.');return}
+  const p=S.participants.find(x=>x.id===pid);const b=(p?.bars||[]).find(x=>x.id===barId);
+  if(!p||!b){alert('Bar not found.');return}
+  if(!b.events)b.events=[];
+  b.events.push({type:'appeal-success',date,by,reason});
+  audit('BAR_APPEALED',pid,'Bar successfully appealed on '+fmtDate(date)+': '+reason);
+  refreshAll();save();closeModal();render();
+  toast('Appeal recorded — bar lifted for '+p.first+' '+p.last);
+}
+
 loadState();
+ensurePermissions();
 runMonthEndCreditApply();
 refreshAll();
 render();
