@@ -1334,11 +1334,6 @@ function ChatPanel({messages,onSend,currentUser,onCollapse}){
   const[showSearch,setShowSearch]=useState(false);
   const searchRef=useRef(null);
   const bottomRef=useRef(null);
-  const prevMsgLen=useRef(0);
-  useEffect(()=>{
-    if(messages.length>prevMsgLen.current)bottomRef.current?.scrollIntoView({behavior:'smooth'});
-    prevMsgLen.current=messages.length;
-  },[messages]);
   useEffect(()=>{if(showSearch)searchRef.current?.focus();},[showSearch]);
   const filtered=useMemo(()=>{
     if(!search)return messages.slice(-50);
