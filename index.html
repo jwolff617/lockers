@@ -1319,7 +1319,7 @@ function CalendarPicker({label,value,onChange,getCellClass,getCellContent,legend
   );
 }
 
-function ChatPanel({messages,onSend,currentUser}){
+function ChatPanel({messages,onSend,currentUser,onCollapse}){
   const[msg,setMsg]=useState('');
   const[search,setSearch]=useState('');
   const[showSearch,setShowSearch]=useState(false);
@@ -1344,7 +1344,10 @@ function ChatPanel({messages,onSend,currentUser}){
   return React.createElement('div',{className:'chat-panel'},
     React.createElement('div',{className:'chat-header',style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
       React.createElement('span',null,'💬 Team Chat'),
-      React.createElement('button',{onClick:toggleSearch,title:showSearch?'Close search':'Search messages',style:{background:'none',border:'none',cursor:'pointer',fontSize:16,padding:'2px 6px',borderRadius:4,color:showSearch?'#1a56db':'#6b7280',background:showSearch?'#eff6ff':'transparent'}},showSearch?'✕':'🔍')
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:2}},
+        React.createElement('button',{onClick:toggleSearch,title:showSearch?'Close search':'Search messages',style:{background:showSearch?'#eff6ff':'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'2px 6px',borderRadius:4,color:showSearch?'#1a56db':'#6b7280'}},showSearch?'✕':'🔍'),
+        React.createElement('button',{onClick:onCollapse,title:'Collapse chat',style:{background:'none',border:'none',cursor:'pointer',fontSize:20,padding:'2px 6px',borderRadius:4,color:'#9ca3af',lineHeight:1,fontWeight:700}},'›')
+      )
     ),
     showSearch&&React.createElement('div',{style:{padding:'6px 12px',borderBottom:'1px solid #e5e7eb',background:'#f8fafc'}},
       React.createElement('input',{ref:searchRef,placeholder:'Search messages...',value:search,onChange:e=>setSearch(e.target.value),onKeyDown:e=>e.key==='Escape'&&toggleSearch(),style:{width:'100%',padding:'5px 10px',border:'1.5px solid #cbd5e1',borderRadius:6,fontSize:12,background:'#fff',boxSizing:'border-box'}})
@@ -2949,6 +2952,7 @@ function SecurityScreen({participants,barRecs,saveCheckIns,checkIns,onLogout,cur
 function ECClerkScreen({currentUser,appState,onLogout,isDemo}){
   const{participants,saveParticipants,lockers,saveLockers,bars,saveBars,barRecs,saveBarRecs,checkIns,saveCheckIns,chatMessages,saveChat,bagTag,saveBagTag,pwResetLog,savePwReset,sundayMeetings,saveSundayMeetings,checkInCounter,saveCICounter,users,saveUsers}=appState;
   const isClerk=currentUser.role==='clerk';
+  const[chatOpen,setChatOpen]=useState(true);
   const[view,setView]=useState('dashboard');
   const[modal,setModal]=useState(null);
   const[modalData,setModalData]=useState(null);
@@ -3231,7 +3235,12 @@ function ECClerkScreen({currentUser,appState,onLogout,isDemo}){
         React.createElement('div',{className:'content-area',style:{flex:1}},renderView()),
         React.createElement(CommandBar,{onAction:handleAction,cmdResult,setCmdResult})
       ),
-      React.createElement(ChatPanel,{messages:chatMessages,onSend:sendChat,currentUser})
+      chatOpen
+        ?React.createElement(ChatPanel,{messages:chatMessages,onSend:sendChat,currentUser,onCollapse:()=>setChatOpen(false)})
+        :React.createElement('div',{style:{width:36,background:'#fff',borderLeft:'1.5px solid #e5e7eb',display:'flex',flexDirection:'column',alignItems:'center',paddingTop:10,gap:6,cursor:'pointer'},onClick:()=>setChatOpen(true),title:'Open Team Chat'},
+          React.createElement('span',{style:{fontSize:18}},'💬'),
+          React.createElement('span',{style:{fontSize:10,color:'#6b7280',writingMode:'vertical-rl',textOrientation:'mixed',letterSpacing:1,marginTop:4,userSelect:'none'}},'CHAT')
+        )
     ),
     modal==='bar'&&modalData?.participant&&React.createElement(BarModal,{participant:modalData.participant,onSave:saveBar,onClose:closeModal,isDemo}),
     modal==='editbar'&&modalData?.participant&&React.createElement(BarModal,{participant:modalData.participant,existingBar:modalData.bar,onSave:saveBar,onClose:closeModal,isDemo}),
