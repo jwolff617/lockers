@@ -854,7 +854,14 @@ function useAppState(ready){
 
   async function saveParticipants(v){
     setParticipants(v);
-    if(v.length>0) await db.upsert('sl_participants',v.map(participantToDb));
+    if(v.length>0){
+      try{
+        await db.upsert('sl_participants',v.map(participantToDb));
+      }catch(e){
+        console.error('saveParticipants failed:',e);
+        alert('⚠️ Failed to save participants to database: '+e.message+'\n\nCheck your Supabase RLS policies — authenticated users need INSERT and UPDATE permissions on sl_participants.');
+      }
+    }
   }
 
   async function saveLockers(v){
