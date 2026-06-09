@@ -570,6 +570,7 @@ async function supaSignIn(email, password) {
   });
   if(!res.ok) { const e = await res.json(); throw new Error(e.error_description || 'Invalid credentials'); }
   _session = await res.json();
+  localStorage.setItem('sl_session', JSON.stringify(_session));
   return _session;
 }
 
@@ -580,8 +581,9 @@ async function supaRefreshSession() {
     headers: {'apikey': SUPA_KEY, 'Content-Type': 'application/json'},
     body: JSON.stringify({refresh_token: _session.refresh_token})
   });
-  if(!res.ok) { _session = null; return false; }
+  if(!res.ok) { _session = null; localStorage.removeItem('sl_session'); return false; }
   _session = await res.json();
+  localStorage.setItem('sl_session', JSON.stringify(_session));
   return true;
 }
 
@@ -603,6 +605,7 @@ async function supaSignOut() {
     headers: {'apikey': SUPA_KEY, 'Authorization': `Bearer ${_session.access_token}`}
   }).catch(()=>{});
   _session = null;
+  localStorage.removeItem('sl_session');
 }
 
 // Convenience helpers
@@ -3219,10 +3222,44 @@ function ECClerkScreen({currentUser,appState,onLogout,isDemo}){
   );
 }
 
+function sessionToUser(s){
+  const appMeta=s.user?.app_metadata||{};
+  const userMeta=s.user?.user_metadata||{};
+  return{id:s.user.id,authId:s.user.id,email:s.user.email,name:userMeta.name||s.user.email,role:appMeta.role||'security',username:userMeta.username||s.user.email};
+}
+
 function App(){
-  const[loggedIn,setLoggedIn]=useState(null);
+  const[loggedIn,setLoggedIn]=useState(()=>{
+    try{
+      const saved=localStorage.getItem('sl_session');
+      if(!saved)return null;
+      const s=JSON.parse(saved);
+      if(!s?.access_token||!s?.user)return null;
+      _session=s;
+      if(s.expires_at&&Date.now()<(s.expires_at*1000-60000))return sessionToUser(s);
+      return null;
+    }catch(e){localStorage.removeItem('sl_session');return null;}
+  });
+  const[restoring,setRestoring]=useState(()=>{
+    try{
+      const saved=localStorage.getItem('sl_session');
+      if(!saved)return false;
+      const s=JSON.parse(saved);
+      return !!(s?.refresh_token&&s?.expires_at&&Date.now()>=(s.expires_at*1000-60000));
+    }catch(e){return false;}
+  });
   const appState=useAppState(!!loggedIn);
-  const{setup,saveSetup,users,saveUsers,participants:appParticipants,saveParticipants,lockers,saveLockers,loading,error}=appState;
+  const{loading,error}=appState;
+
+  // On mount: silently restore expired session via refresh token
+  useEffect(()=>{
+    if(!restoring)return;
+    supaRefreshSession().then(ok=>{
+      if(ok&&_session?.user)setLoggedIn(sessionToUser(_session));
+      else localStorage.removeItem('sl_session');
+      setRestoring(false);
+    });
+  },[]);
 
   // Auto-refresh session ~5 min before expiry
   useEffect(()=>{
@@ -3235,29 +3272,20 @@ function App(){
     return()=>clearTimeout(t);
   },[loggedIn]);
 
-  function handleSetupComplete({org,users:newUsers,lockers:newLockers,participants:newParticipants,initialized,date}){
-    saveSetup({org,initialized,date});
-    saveUsers(newUsers);
-    saveLockers(newLockers);
-    if(newParticipants&&newParticipants.length>0)saveParticipants(newParticipants);
-  }
-
   function handleLogin(user){setLoggedIn(user);}
   async function handleLogout(){await supaSignOut();setLoggedIn(null);}
 
-  if(loading){return React.createElement('div',{style:{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1a56db 0%,#1e3a8a 100%)'}},React.createElement('div',{style:{textAlign:'center',color:'#fff'}},React.createElement('div',{style:{fontSize:48,marginBottom:16}},'🔒'),React.createElement('div',{style:{fontSize:24,fontWeight:700,marginBottom:8}},'SHARE Lockers'),React.createElement('div',{style:{fontSize:14,opacity:0.8}},'Connecting...')));}
-  if(error){return React.createElement('div',{style:{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement('div',{style:{background:'#fff',borderRadius:16,padding:32,textAlign:'center'}},React.createElement('div',null,'⚠️ Database error: '+error),React.createElement('button',{className:'btn btn-primary',style:{marginTop:16},onClick:()=>window.location.reload()},'Retry')));}
-  if(!setup||!setup.initialized){
-    return React.createElement(SetupWizard,{onComplete:handleSetupComplete});
-  }
-
-  if(!loggedIn)return React.createElement(LoginScreen,{onLogin:handleLogin});
-  if(loading)return React.createElement('div',{style:{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f0f4f8'}},
-    React.createElement('div',{style:{textAlign:'center',color:'#6b7280'}},
-      React.createElement('div',{style:{fontSize:32,marginBottom:12}},'🔒'),
-      React.createElement('div',{style:{fontSize:16,fontWeight:600}},'Loading SHARE Lockers…')
+  const splash=React.createElement('div',{style:{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1a56db 0%,#1e3a8a 100%)'}},
+    React.createElement('div',{style:{textAlign:'center',color:'#fff'}},
+      React.createElement('div',{style:{fontSize:48,marginBottom:16}},'🔒'),
+      React.createElement('div',{style:{fontSize:24,fontWeight:700,marginBottom:8}},'SHARE Lockers'),
+      React.createElement('div',{style:{fontSize:14,opacity:0.8}},restoring?'Restoring session...':'Loading...')
     )
   );
+  if(restoring)return splash;
+  if(!loggedIn)return React.createElement(LoginScreen,{onLogin:handleLogin});
+  if(loading)return splash;
+  if(error)return React.createElement('div',{style:{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement('div',{style:{background:'#fff',borderRadius:16,padding:32,textAlign:'center'}},React.createElement('div',null,'⚠️ Database error: '+error),React.createElement('button',{className:'btn btn-primary',style:{marginTop:16},onClick:()=>window.location.reload()},'Retry')));
   if(loggedIn.role==='security')return React.createElement(SecurityScreen,{participants:appState.participants,barRecs:appState.barRecs,saveCheckIns:v=>appState.saveCheckIns(v),checkIns:appState.checkIns,onLogout:handleLogout,currentUser:loggedIn});
   return React.createElement(ECClerkScreen,{currentUser:loggedIn,appState,onLogout:handleLogout,isDemo:false});
 }
