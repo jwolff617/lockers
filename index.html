@@ -1529,6 +1529,8 @@ function NewParticipantModal({onClose,onSave,lockers,participants,isDemo}){
   const[workDates,setWorkDates]=useState([]); // one per locker
   const[plDate,setPlDate]=useState('');
   const[skipWork,setSkipWork]=useState(false);
+  const[isClerk,setIsClerk]=useState(false);
+  const[isEC,setIsEC]=useState(false);
   const today=isoDate();
   const max12m=isoDate(addDays(TODAY,365));
   const numLockers=selectedLockers.length||1;
@@ -1561,7 +1563,7 @@ function NewParticipantModal({onClose,onSave,lockers,participants,isDemo}){
       renewedThru:isoDate(new Date(TODAY.getFullYear(),TODAY.getMonth()+1,15)),
       barred:false,bars:[],workShiftsRequired:selectedLockers.length,
       missedShifts:[],mandatoryShifts:[],sundayAttendance:[],powerLunchAttendance:[],
-      isClerk:false,isEC:false,archived:false,notes:'',renewed:false,
+      isClerk,isEC,archived:false,notes:'',renewed:false,
       workDatePending:skipWork};
     onSave(p);
   }
@@ -1575,7 +1577,22 @@ function NewParticipantModal({onClose,onSave,lockers,participants,isDemo}){
     isDemo&&React.createElement('div',{className:'demo-note'},'👁 Demo mode — view only'),
     React.createElement('div',{className:'setup-steps'},steps.map((s,i)=>React.createElement('div',{key:i,className:`setup-step ${i<step?'done':i===step?'active':''}`}))),
     React.createElement('div',{style:{fontSize:12,color:'#6b7280',marginBottom:16}},`Step ${step+1}: ${steps[step]}`),
-    step===0&&React.createElement('div',{className:'form-group'},React.createElement('label',null,'Participant Full Name'),React.createElement('input',{value:name,onChange:e=>setName(e.target.value),placeholder:'First Last',autoFocus:true})),
+    step===0&&React.createElement('div',null,
+      React.createElement('div',{className:'form-group'},React.createElement('label',null,'Participant Full Name'),React.createElement('input',{value:name,onChange:e=>setName(e.target.value),placeholder:'First Last',autoFocus:true})),
+      React.createElement('div',{style:{marginTop:12}},
+        React.createElement('label',{style:{display:'block',fontSize:13,fontWeight:600,color:'#374151',marginBottom:8}},'Role (optional)'),
+        React.createElement('div',{style:{display:'flex',gap:24}},
+          React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',padding:'8px 14px',borderRadius:8,border:`2px solid ${isClerk?'#1a56db':'#e5e7eb'}`,background:isClerk?'#eff6ff':'#fff',fontWeight:isClerk?600:400}},
+            React.createElement('input',{type:'checkbox',checked:isClerk,onChange:e=>{setIsClerk(e.target.checked);if(e.target.checked)setIsEC(false);},style:{accentColor:'#1a56db'}}),
+            'Clerk'
+          ),
+          React.createElement('label',{style:{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',padding:'8px 14px',borderRadius:8,border:`2px solid ${isEC?'#059669':'#e5e7eb'}`,background:isEC?'#ecfdf5':'#fff',fontWeight:isEC?600:400}},
+            React.createElement('input',{type:'checkbox',checked:isEC,onChange:e=>{setIsEC(e.target.checked);if(e.target.checked)setIsClerk(false);},style:{accentColor:'#059669'}}),
+            'EC Staff'
+          )
+        )
+      )
+    ),
     step===1&&React.createElement('div',null,
       React.createElement('div',{style:{fontSize:13,color:'#6b7280',marginBottom:12}},'Select up to 3 lockers. 1 locker = 1 work shift/month.'),
       React.createElement('div',{className:'locker-grid'},availableLockers.map(l=>React.createElement('div',{key:l.id,className:`locker-chip available ${selectedLockers.includes(l.id)?'selected':''}`,onClick:()=>toggleLocker(l.id)},`#${l.id}`))),
@@ -1632,6 +1649,7 @@ function NewParticipantModal({onClose,onSave,lockers,participants,isDemo}){
 
     step===4&&React.createElement('div',{className:'card'},
       React.createElement('div',{className:'info-row'},React.createElement('span',{className:'info-label'},'Name'),React.createElement('span',null,name)),
+      (isClerk||isEC)&&React.createElement('div',{className:'info-row'},React.createElement('span',{className:'info-label'},'Role'),React.createElement('span',{style:{fontWeight:600,color:isClerk?'#1a56db':'#059669'}},isClerk?'Clerk':'EC Staff')),
       React.createElement('div',{className:'info-row'},React.createElement('span',{className:'info-label'},'Lockers'),React.createElement('span',null,selectedLockers.map(id=>`#${id}`).join(', '))),
       React.createElement('div',{className:'info-row'},React.createElement('span',{className:'info-label'},'Work Shifts'),React.createElement('span',null,skipWork?'Not scheduled yet':workDates.filter(Boolean).map((d,i)=>`Shift ${i+1}: ${fmtDate(d)}`).join(' · ')||'—')),
       React.createElement('div',{className:'info-row'},React.createElement('span',{className:'info-label'},'Power Lunch'),React.createElement('span',null,plDate?fmtDate(plDate):'Not scheduled yet')),
