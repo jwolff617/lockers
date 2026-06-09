@@ -2700,7 +2700,7 @@ function ReportCenter({participants,lockers,checkIns,checkInCounter,sundayMeetin
         )
       ));
     }
-    if(activeReport==='powerlunchreport')return React.createElement(PowerLunchReport,{participants,lockers,bars,checkIns});
+    if(activeReport==='powerlunchreport')return React.createElement(PowerLunchReport,{participants,lockers,checkIns});
     return React.createElement('div',{style:{color:'#9ca3af',padding:24,textAlign:'center'}},'Report data displays here once there is activity in the system.');
   }
   return React.createElement('div',null,
