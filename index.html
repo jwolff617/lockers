@@ -1425,7 +1425,8 @@ function BarModal({participant,onSave,onClose,existingBar,isDemo}){
 function LockerInventory({lockers,saveLockers,participants,saveParticipants,isDemo,isClerk}){
   const[search,setSearch]=useState('');
   const[editLocker,setEditLocker]=useState(null);
-  const[deleteNum,setDeleteNum]=useState('');
+  const[addSpec,setAddSpec]=useState('');
+  const[removeSpec,setRemoveSpec]=useState('');
   const[tab,setTab]=useState('all');
   const lockerArr=Object.values(lockers||{}).sort((a,b)=>a.id-b.id);
   const getP=id=>participants.find(p=>p.id===id);
@@ -1437,14 +1438,50 @@ function LockerInventory({lockers,saveLockers,participants,saveParticipants,isDe
     return String(l.id).includes(search)||(p&&p.name.toLowerCase().includes(search.toLowerCase()));
   });
   function updateLocker(id,updates){if(isDemo)return;saveLockers({...lockers,[id]:{...lockers[id],...updates}});setEditLocker(null);}
-  function addLockers(n){
+  function parseLockerSpec(spec){
+    const ids=new Set();
+    const parts=spec.split(',').map(s=>s.trim()).filter(Boolean);
+    for(const part of parts){
+      const range=part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if(range){const start=parseInt(range[1]),end=parseInt(range[2]);if(start>end||end-start>999)return null;for(let i=start;i<=end;i++)ids.add(i);}
+      else if(/^\d+$/.test(part)){ids.add(parseInt(part));}
+      else return null;
+    }
+    return[...ids].sort((a,b)=>a-b);
+  }
+  function fmtLockerIds(ids){
+    if(!ids.length)return'';
+    if(ids.length<=8)return ids.map(id=>`#${id}`).join(', ');
+    return`#${ids[0]}–#${ids[ids.length-1]} (${ids.length} lockers)`;
+  }
+  function addLockersBySpec(){
     if(isDemo)return;
-    if(!window.confirm(`Add ${n} new locker(s) to inventory?`))return;
-    const existing=Object.keys(lockers).map(Number);
-    const max=Math.max(...existing,0);
+    const ids=parseLockerSpec(addSpec.trim());
+    if(!ids||!ids.length){alert('Enter a number (e.g. 42), a range (e.g. 101-150), or a comma-separated list.');return;}
+    const toAdd=ids.filter(id=>!lockers[id]);
+    const skipped=ids.length-toAdd.length;
+    if(!toAdd.length){alert('All specified lockers already exist in inventory.');return;}
+    let msg=`Add ${toAdd.length} locker(s): ${fmtLockerIds(toAdd)}?`;
+    if(skipped)msg+=`\n(${skipped} already exist and will be skipped)`;
+    if(!window.confirm(msg))return;
     const nl={...lockers};
-    for(let i=1;i<=n;i++){const newId=max+i;if(!nl[newId])nl[newId]={id:newId,status:'available',participantId:null,notes:'',working:true};}
-    saveLockers(nl);
+    toAdd.forEach(id=>{nl[id]={id,status:'available',participantId:null,notes:'',working:true,assignedDate:null,releasedDate:null,neverAssigned:true};});
+    saveLockers(nl);setAddSpec('');
+  }
+  function removeLockersBySpec(){
+    if(isDemo)return;
+    const ids=parseLockerSpec(removeSpec.trim());
+    if(!ids||!ids.length){alert('Enter a number (e.g. 42), a range (e.g. 200-220), or a comma-separated list.');return;}
+    const existing=ids.filter(id=>lockers[id]);
+    if(!existing.length){alert('None of those lockers exist in inventory.');return;}
+    const assigned=existing.filter(id=>lockers[id].status==='assigned');
+    const removable=existing.filter(id=>lockers[id].status!=='assigned');
+    if(!removable.length){alert(`All specified locker(s) are currently assigned and cannot be removed.`);return;}
+    let msg=`Remove ${removable.length} locker(s): ${fmtLockerIds(removable)}?`;
+    if(assigned.length)msg+=`\n\n⚠️ ${assigned.length} assigned locker(s) will be skipped: ${fmtLockerIds(assigned)}`;
+    if(!window.confirm(msg))return;
+    const nl={...lockers};removable.forEach(id=>{delete nl[id];});
+    saveLockers(nl);setRemoveSpec('');
   }
   function deleteLocker(id){
     if(isDemo)return;
@@ -1463,17 +1500,23 @@ function LockerInventory({lockers,saveLockers,participants,saveParticipants,isDe
     ),
     isClerk&&!isDemo&&React.createElement('div',{className:'card'},
       React.createElement('div',{className:'section-title'},'Manage Lockers'),
-      React.createElement('div',{style:{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:12}},
-        React.createElement('span',{style:{fontSize:13,color:'#6b7280'}},'Add lockers:'),
-        [1,5,10,50,100].map(n=>React.createElement('button',{key:n,className:'btn btn-sm btn-secondary',onClick:()=>addLockers(n)},`+${n}`))
-      ),
-      React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}},
-        React.createElement('span',{style:{fontSize:13,color:'#6b7280'}},'Delete locker #:'),
-        React.createElement('input',{type:'number',placeholder:'Number',value:deleteNum,onChange:e=>setDeleteNum(e.target.value),style:{width:100,padding:'6px 10px',border:'1.5px solid #e5e7eb',borderRadius:8,fontSize:13}}),
-        React.createElement('button',{className:'btn btn-sm btn-danger',onClick:()=>{
-          const id=parseInt(deleteNum);
-          if(deleteNum){deleteLocker(parseInt(deleteNum));setDeleteNum('');}
-        }},'Delete')
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}},
+        React.createElement('div',null,
+          React.createElement('label',{style:{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:6,textTransform:'uppercase',letterSpacing:.5}},'Add Lockers'),
+          React.createElement('div',{style:{display:'flex',gap:8}},
+            React.createElement('input',{placeholder:'e.g. 42 or 101-150 or 42,55,200-220',value:addSpec,onChange:e=>setAddSpec(e.target.value),onKeyDown:e=>e.key==='Enter'&&addLockersBySpec(),style:{flex:1,padding:'7px 10px',border:'1.5px solid #e5e7eb',borderRadius:8,fontSize:13}}),
+            React.createElement('button',{className:'btn btn-sm btn-secondary',onClick:addLockersBySpec,disabled:!addSpec.trim()},'Add')
+          ),
+          React.createElement('div',{style:{fontSize:11,color:'#9ca3af',marginTop:4}},'Single number, range (101-150), or comma list')
+        ),
+        React.createElement('div',null,
+          React.createElement('label',{style:{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:6,textTransform:'uppercase',letterSpacing:.5}},'Remove Lockers'),
+          React.createElement('div',{style:{display:'flex',gap:8}},
+            React.createElement('input',{placeholder:'e.g. 42 or 200-220 or 42,55,200-220',value:removeSpec,onChange:e=>setRemoveSpec(e.target.value),onKeyDown:e=>e.key==='Enter'&&removeLockersBySpec(),style:{flex:1,padding:'7px 10px',border:'1.5px solid #e5e7eb',borderRadius:8,fontSize:13}}),
+            React.createElement('button',{className:'btn btn-sm btn-danger',onClick:removeLockersBySpec,disabled:!removeSpec.trim()},'Remove')
+          ),
+          React.createElement('div',{style:{fontSize:11,color:'#9ca3af',marginTop:4}},'Assigned lockers will be skipped automatically')
+        )
       )
     ),
     React.createElement('div',{className:'tabs'},
