@@ -472,7 +472,7 @@ const S = {
   data: {
     participants: [], lockers: {}, barRecs: [], checkIns: [],
     chatMessages: [], users: [], bagTag: [], sundayMeetings: [],
-    pwResetLog: [], partMessages: [], checkInCounter: { count:0, date:'' },
+    pwResetLog: [], partMessages: [], checkInCounter: { count:0, date:'' }, setup: {},
     sessions: {}, infoPages: {},
   },
   loaded: false,
@@ -513,7 +513,7 @@ async function loadAll() {
       safe(db.select('sl_pw_reset','?select=*&order=date.desc')),
       safe(db.select('sl_part_messages','?select=*&order=ts.desc&limit=100')),
       safe(db.select('sl_ci_counter',`?date=eq.${isoDate()}`)),
-      safe(db.select('sl_setup','?key=like.info.*')),
+      safe(db.select('sl_config','')),
     ]);
     const lockerObj = {};
     (lockerRows||[]).forEach(r => { lockerObj[r.id] = lockerFromDb(r); });
@@ -532,8 +532,11 @@ async function loadAll() {
     S.data.partMessages = (msgRows||[]);
     if (ctrRows && ctrRows.length > 0) S.data.checkInCounter = { count:ctrRows[0].count, date:ctrRows[0].date };
     const infoPages = {};
-    (setupRows||[]).forEach(r => {
-      if (r.key && r.key.startsWith('info.')) infoPages[r.key.slice(5)] = r.value || '';
+    const allConfig = {};
+    (setupRows||[]).forEach(r => { if (r.key) allConfig[r.key] = r.val || ''; });
+    S.data.setup = allConfig;
+    Object.keys(allConfig).forEach(k => {
+      if (k.startsWith('info.')) infoPages[k.slice(5)] = allConfig[k];
     });
     S.data.infoPages = infoPages;
     S.loaded = true;
@@ -1086,7 +1089,7 @@ async function doLogout() {
   S.user = null;
   S.loaded = false;
   S.data = { participants:[], lockers:{}, barRecs:[], checkIns:[], chatMessages:[], users:[],
-    bagTag:[], sundayMeetings:[], pwResetLog:[], partMessages:[], checkInCounter:{count:0,date:''}, sessions:{} };
+    bagTag:[], sundayMeetings:[], pwResetLog:[], partMessages:[], checkInCounter:{count:0,date:''}, sessions:{}, setup:{} };
   if (S.chatPoll) { clearInterval(S.chatPoll); S.chatPoll = null; }
   nav([]);
 }
@@ -1144,7 +1147,7 @@ async function saveInfoPage(noteKey) {
   const btn = document.getElementById(`ip-save-${noteKey}`);
   if (btn) btn.textContent = 'Saving…';
   try {
-    await db.upsert('sl_setup', [{ id: `info.${noteKey}`, key: `info.${noteKey}`, value: content }]);
+    await db.upsert('sl_config', [{ key: `info.${noteKey}`, val: content }]);
     if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 1800); }
   } catch(e) {
     if (btn) btn.textContent = 'Save';
