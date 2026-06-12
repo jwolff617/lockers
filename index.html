@@ -50,8 +50,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 
 /* Tree */
 #tree-wrap{flex:1;overflow-y:auto;padding:12px 14px}
-.tree-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-@media(max-width:600px){.tree-grid{grid-template-columns:1fr}}
+.tree-grid{display:grid;grid-template-columns:1fr;gap:5px}
 .tree-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r);cursor:pointer;border:1.5px solid var(--border);transition:background .15s;background:var(--bg)}
 .tree-item:hover{background:var(--bg2)}
 .tree-item.locked{cursor:pointer;opacity:.7}
@@ -431,10 +430,10 @@ const DICT = {
           lunch_edit: { label:'Edit Lunch',     icon:'✏️', desc:'Edit power lunch schedule' },
         }
       },
-      reports: { label:'Reports', icon:'📊', desc:'Full report center',
+      center: { label:'Report Center', icon:'📊', desc:'Reports and bag & tag management',
         details: {
-          view: { label:'View Reports',  icon:'📊', desc:'View available reports' },
-          full: { label:'Report Center', icon:'📈', desc:'Full report center access' },
+          reports: { label:'Reports',   icon:'📊', desc:'Full report center access' },
+          bag_tag: { label:'Bag & Tag', icon:'🏷️', desc:'Confiscated items tracking' },
         }
       },
       users: { label:'Users', icon:'👤', desc:'User account management',
@@ -456,13 +455,6 @@ const DICT = {
       search: { label:'Search', icon:'🔍', desc:'Global search',
         details: {
           all: { label:'Search All', icon:'🔍', desc:'Search participants, lockers, bars' },
-        }
-      },
-      bag_tag: { label:'Bag & Tag', icon:'🏷️', desc:'Confiscated items tracking',
-        details: {
-          view:    { label:'View List', icon:'📋', desc:'View bag and tag list' },
-          new:     { label:'New Item',  icon:'➕', desc:'Add item to bag and tag' },
-          archive: { label:'Archive',   icon:'📦', desc:'Archive bag and tag item' },
         }
       },
     }
@@ -2386,10 +2378,10 @@ function renderReports(cat, full) {
   return html;
 }
 
-['EC','Clerk'].forEach(cat => {
-  regScreen(`${cat}.reports.view`, () => renderReports(cat, false));
-});
-regScreen('Clerk.reports.full', () => renderReports('Clerk', true));
+// EC: reports.view (EC has one reports note with view detail)
+regScreen('EC.reports.view', () => renderReports('EC', false));
+// Clerk: reports moved under center.reports — Clerk always gets full report
+regScreen('Clerk.center.reports', () => renderReports('Clerk', true));
 
 // ════════════════════════════════════════════════════
 //  EC / CLERK — GLOBAL SEARCH
@@ -2458,45 +2450,46 @@ function globalSearch(cat) {
 // ════════════════════════════════════════════════════
 //  CLERK — BAG & TAG
 // ════════════════════════════════════════════════════
-regScreen('Clerk.bag_tag.view', () => {
+// ════════════════════════════════════════════════════
+//  CLERK — BAG & TAG (combined screen under center.bag_tag)
+// ════════════════════════════════════════════════════
+regScreen('Clerk.center.bag_tag', () => {
   const items = S.data.bagTag.filter(b=>!b.archived);
+  const archived = S.data.bagTag.filter(b=>b.archived);
   const rows = items.length
     ? items.map(b=>`<tr>
         <td style="font-weight:600">${esc(b.name||'Unnamed')}</td>
         <td>${b.participantId?esc(S.data.participants.find(p=>p.id===b.participantId)?.name||'Unknown'):'—'}</td>
         <td style="font-size:11px;color:var(--text3)">${fmtDate(b.date)}</td>
         <td>${b.barred?'<span class="badge badge-red">Barred</span>':''}</td>
-        <td><button class="btn btn-sm" onclick="archiveBagTag('${b.id}')">Archive</button></td>
+        <td><button class="btn btn-sm btn-danger" onclick="archiveBagTag('${b.id}')">Archive</button></td>
       </tr>`).join('')
-    : '<tr><td colspan="5" style="color:var(--text3);text-align:center">No items in bag &amp; tag list.</td></tr>';
+    : '<tr><td colspan="5" style="color:var(--text3);text-align:center">No active items.</td></tr>';
+  const archRows = archived.length
+    ? archived.map(b=>`<div class="info-row">
+        <span class="info-lbl">${fmtDate(b.date)}</span>
+        <span>${esc(b.name||'Unnamed')}${b.participantId?` — ${esc(S.data.participants.find(p=>p.id===b.participantId)?.name||'')}`:''}</span>
+      </div>`).join('')
+    : '<div style="color:var(--text3);font-size:12px">No archived items.</div>';
   return `<div class="screen">
-    <div class="screen-title">Bag &amp; Tag List</div>
-    <div class="screen-sub">Lockers.Clerk.bag_tag.view — ${items.length} active items</div>
-    <button class="btn btn-primary btn-sm mb-3" onclick="nav(['Clerk','bag_tag','new'])">+ Add Item</button>
-    <div style="overflow-x:auto">
-      <table><thead><tr><th>Item / Name</th><th>Participant</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+    <div class="screen-title">Bag &amp; Tag</div>
+    <div class="section-header">Active — ${items.length} item${items.length!==1?'s':''}</div>
+    <div style="overflow-x:auto;margin-bottom:16px">
+      <table><thead><tr><th>Item / Name</th><th>Participant</th><th>Date</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table>
     </div>
+    <div class="section-header">Add Item</div>
+    <form class="card" onsubmit="saveBagTagItem(event)" style="margin-bottom:16px">
+      <div class="form-group"><label>Item Description / Name</label><input name="name" required placeholder="e.g. Blue backpack"></div>
+      <div class="form-group"><label>Participant (optional)</label><input name="pname" placeholder="Search by name…"></div>
+      <div class="form-group"><label>Date</label><input name="date" type="date" value="${isoDate()}"></div>
+      <button type="submit" class="btn btn-primary btn-sm">Add to List</button>
+      <div id="bt-result" style="margin-top:8px"></div>
+    </form>
+    <div class="section-header">Archived — ${archived.length}</div>
+    <div class="card">${archRows}</div>
   </div>`;
 });
-
-regScreen('Clerk.bag_tag.new', () => `
-  <div class="screen">
-    <div class="screen-title">New Bag &amp; Tag Item</div>
-    <div class="screen-sub">Lockers.Clerk.bag_tag.new</div>
-    <form onsubmit="saveBagTagItem(event)">
-      <div class="card">
-        <div class="form-group"><label>Item Description / Name</label><input name="name" required placeholder="e.g. Blue backpack"></div>
-        <div class="form-group"><label>Participant (optional)</label><input name="pname" placeholder="Search by name…"></div>
-        <div class="form-group"><label>Date</label><input name="date" type="date" value="${isoDate()}"></div>
-        <div class="flex gap-2 mt-3">
-          <button type="submit" class="btn btn-primary">Add to List</button>
-          <button type="button" class="btn" onclick="nav(['Clerk','bag_tag','view'])">Cancel</button>
-        </div>
-      </div>
-    </form>
-    <div id="bt-result"></div>
-  </div>`);
 
 async function saveBagTagItem(e) {
   e.preventDefault();
@@ -2506,33 +2499,20 @@ async function saveBagTagItem(e) {
   const item = { id:genId(), name:f.name.value.trim(), participantId:p?.id||null, date:f.date.value||isoDate(), barred:p?.barred||false, archived:false };
   S.data.bagTag.push(item);
   await db.upsert('sl_bag_tag',{id:item.id,participant_id:item.participantId,name:item.name,date:item.date,barred:item.barred});
-  document.getElementById('bt-result').innerHTML='<div class="alert alert-success">Item added to Bag &amp; Tag list.</div>';
-  e.target.reset();
+  const res = document.getElementById('bt-result');
+  if (res) res.innerHTML='<div class="alert alert-success">Item added.</div>';
+  f.reset(); f.date.value=isoDate();
+  render();
 }
 
 async function archiveBagTag(id) {
-  if (!confirm('Archive this bag & tag item?')) return;
+  if (!confirm('Archive this item?')) return;
   const b = S.data.bagTag.find(x=>x.id===id);
   if (!b) return;
   b.archived=true;
   await db.update('sl_bag_tag',{archived:true},`?id=eq.${id}`);
   render();
 }
-
-regScreen('Clerk.bag_tag.archive', () => {
-  const archived = S.data.bagTag.filter(b=>b.archived);
-  const rows = archived.length
-    ? archived.map(b=>`<div class="info-row">
-        <span class="info-lbl">${fmtDate(b.date)}</span>
-        <span>${esc(b.name||'Unnamed')}${b.participantId?` — ${esc(S.data.participants.find(p=>p.id===b.participantId)?.name||'')}`:''}</span>
-      </div>`).join('')
-    : '<div style="color:var(--text3)">No archived items.</div>';
-  return `<div class="screen">
-    <div class="screen-title">Archived Bag &amp; Tag</div>
-    <div class="screen-sub">Lockers.Clerk.bag_tag.archive — ${archived.length} archived items</div>
-    <div class="card">${rows}</div>
-  </div>`;
-});
 
 // ════════════════════════════════════════════════════
 //  EC / CLERK — LOCKER RELEASE + BROKEN (standalone screens)
