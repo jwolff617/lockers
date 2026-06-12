@@ -628,7 +628,7 @@ function hasAccess(path) {
   if (!S.user) return false;
   const role = S.user.role;
   if (req === 'part') return role === 'part';
-  if (req === 'sec') return role === 'sec';
+  if (req === 'sec') return role === 'sec' || role === 'security';
   if (req === 'ec') return role === 'ec' || role === 'clerk';
   if (req === 'clerk') return role === 'clerk';
   return false;
@@ -639,7 +639,7 @@ function canSee(catKey) {
   const role = S.user?.role || null;
   if (catKey === 'info') return true;
   if (catKey === 'part') return !role || role === 'part';
-  if (catKey === 'sec')  return role === 'sec';
+  if (catKey === 'sec')  return role === 'sec' || role === 'security';
   if (catKey === 'EC')   return role === 'ec' || role === 'clerk';
   if (catKey === 'Clerk') return role === 'clerk';
   return false;
@@ -1074,7 +1074,7 @@ async function doLogin(role) {
       _loginCallback();
     } else {
       // header login: navigate to the user's home category
-      const roleHome = { clerk:'Clerk', ec:'EC', sec:'sec', part:'part' };
+      const roleHome = { clerk:'Clerk', ec:'EC', sec:'sec', security:'sec', part:'part' };
       const home = roleHome[S.user?.role];
       if (home) nav([home]);
       else render();
@@ -1945,7 +1945,7 @@ function startChatPoll() {
         <div class="form-row">
           <div class="form-group"><label>Temp Password</label><input name="password" type="password" required placeholder="They can change this later"></div>
           <div class="form-group"><label>Role</label>
-            <select name="role"><option value="ec">EC</option><option value="clerk">Clerk</option><option value="sec">Security</option></select>
+            <select name="role"><option value="ec">EC</option><option value="clerk">Clerk</option><option value="security">Security</option></select>
           </div>
         </div>
         <button type="submit" class="btn btn-primary btn-sm">Add User</button>
