@@ -1017,9 +1017,9 @@ function showLoginModal(role, callback) {
     <h2>Log In — ${lbl}</h2>
     <p class="modal-sub">${isShared ? 'Shared participant access' : 'Enter your credentials'}</p>
     <div id="login-err"></div>
-    ${isShared ? '' : '<div class="form-group"><label>Email</label><input id="li-email" type="text" placeholder="your@email.com" autocomplete="username"></div>'}
-    <div class="form-group"><label>Password</label><input id="li-pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin('${role}')"></div>
-    <button class="btn btn-primary w-full" onclick="doLogin('${role}')">Log In</button>`;
+    ${isShared ? '' : '<div class="form-group"><label>Username</label><input id="li-email" type="text" placeholder="your username" autocomplete="username"></div>'}
+    <div class="form-group"><label>Password</label><input id="li-pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin('${role||''}')"></div>
+    <button class="btn btn-primary w-full" onclick="doLogin('${role||''}')">Log In</button>`;
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(() => {
     const inp = document.getElementById(isShared ? 'li-pw' : 'li-email');
@@ -1049,28 +1049,12 @@ async function doLogin(role) {
       // Staff: first try sl_users username+password (existing app pattern)
       const username = document.getElementById('li-email')?.value?.trim();
       if (!username) { errEl.innerHTML = '<div class="alert alert-danger">Username required.</div>'; return; }
-      const uRows = await db.select('sl_users', `?username=eq.${encodeURIComponent(username)}&limit=1`);
-      const matched = (uRows||[]).find(u => u.password === pw);
-      if (matched) {
-        const normRole = (matched.role||'').toLowerCase();
-        S.user = { id:matched.id, name:matched.name||username, role:normRole };
-        // Optional: try Supabase Auth session token if email login is configured
-        try {
-          const emailGuess = username.includes('@') ? username : null;
-          if (emailGuess) {
-            const session = await supaSignIn(emailGuess, pw);
-            S.user.access_token = session.access_token;
-          }
-        } catch { /* anon key is fine */ }
-      } else {
-        // Try pure Supabase Auth (email format)
-        const emailTry = username.includes('@') ? username : username + '@sharelockers.org';
-        const session = await supaSignIn(emailTry, pw);
-        const byEmail = await db.select('sl_users', `?username=eq.${encodeURIComponent(username)}&limit=1`);
-        const uRole = ((byEmail?.[0]?.role) || role || '').toLowerCase();
-        const uName = byEmail?.[0]?.name || username;
-        S.user = { id:session.user?.id, name:uName, role:uRole, access_token:session.access_token };
-      }
+      const uRows = await db.select('sl_users', `?select=*`);
+      const matched = (uRows||[]).find(u =>
+        u.username?.toLowerCase() === username.toLowerCase() && u.password === pw
+      );
+      if (!matched) throw new Error('Invalid username or password.');
+      S.user = { id:matched.id, name:matched.name||username, role:(matched.role||'').toLowerCase() };
     }
     closeModal();
     S.loaded = false; // force fresh load with new session
@@ -1445,7 +1429,7 @@ function renderParticipantSearch(cat) {
   const rows = active.map(p=>{
     const barred = p.barred ? '<span class="badge badge-red">Barred</span>' : '';
     const chips = (p.lockers||[]).map(l=>`<span class="badge badge-blue">#${l}</span>`).join(' ');
-    return `<tr onclick="nav(['${cat}','participants','edit']); window._editPid='${p.id}'">
+    return `<tr onclick="window._editPid='${p.id}'; nav(['${cat}','participants','edit'])">
       <td style="font-weight:700">${esc(p.name)}</td>
       <td>${chips}</td>
       <td>${p.renewed?'<span class="badge badge-green">Renewed</span>':'<span class="badge badge-yellow">Pending</span>'} ${barred}</td>
@@ -1553,7 +1537,7 @@ async function archiveParticipant(pid, cat) {
   regScreen(`${cat}.participants.edit`, () => {
     const pid = window._editPid;
     const p = pid ? S.data.participants.find(x=>x.id===pid) : null;
-    if (!p) return `<div class="coming-soon"><div class="cs-note">Navigate to a participant to edit.</div></div>`;
+    if (!p) { S.path = S.path.slice(0,-1); render(); return ''; }
     return renderParticipantForm(cat, p);
   });
 });
@@ -2651,7 +2635,7 @@ function globalSearch(cat) {
           ${p.barred?'<span class="badge badge-red" style="margin-left:4px">Barred</span>':''}
           ${p.archived?'<span class="badge badge-gray" style="margin-left:4px">Archived</span>':''}
         </div>
-        <button class="btn btn-sm" onclick="nav(['${cat}','participants','edit']);window._editPid='${p.id}'">Edit</button>
+        <button class="btn btn-sm" onclick="window._editPid='${p.id}'; nav(['${cat}','participants','edit'])">Edit</button>
       </div>`).join('')
     : '<div style="color:var(--text3);font-size:12px">No participants matched.</div>';
 
