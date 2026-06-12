@@ -1021,7 +1021,7 @@ function showLoginModal(role, callback) {
     <h2>Log In — ${lbl}</h2>
     <p class="modal-sub">${isShared ? 'Shared participant access' : 'Enter your credentials'}</p>
     <div id="login-err"></div>
-    ${isShared ? '' : '<div class="form-group"><label>Email</label><input id="li-email" type="email" placeholder="your email" autocomplete="email"></div>'}
+    ${isShared ? '' : '<div class="form-group"><label>Username or Email</label><input id="li-email" type="text" placeholder="username or email" autocomplete="username"></div>'}
     <div class="form-group"><label>Password</label><input id="li-pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin('${role||''}')"></div>
     <button class="btn btn-primary w-full" onclick="doLogin('${role||''}')">Log In</button>`;
   document.getElementById('modal-overlay').classList.add('open');
@@ -1052,9 +1052,16 @@ async function doLogin(role) {
     } else {
       // Staff: first try sl_users username+password (existing app pattern)
       const username = document.getElementById('li-email')?.value?.trim();
-      if (!username) { errEl.innerHTML = '<div class="alert alert-danger">Username required.</div>'; return; }
+      if (!username) { errEl.innerHTML = '<div class="alert alert-danger">Username or email required.</div>'; return; }
+      // Resolve username → email if needed (Supabase Auth requires email)
+      let loginEmail = username;
+      if (!username.includes('@')) {
+        const rows = await db.rpc('get_staff_email', { p_identifier: username });
+        loginEmail = Array.isArray(rows) ? rows[0]?.get_staff_email : rows?.get_staff_email;
+        if (!loginEmail) throw new Error('Username not found.');
+      }
       // Authenticate via Supabase Auth, then fetch role from sl_users
-      const session = await supaSignIn(username, pw);
+      const session = await supaSignIn(loginEmail, pw);
       const token = session.access_token;
       const authedEmail = session.user?.email;
       if (!token || !authedEmail) throw new Error('Authentication failed.');
@@ -1940,7 +1947,10 @@ function startChatPoll() {
       <form class="card" onsubmit="addUser(event)">
         <div class="form-row">
           <div class="form-group"><label>Display Name</label><input name="uname" required placeholder="Jane Smith"></div>
-          <div class="form-group"><label>Email (login)</label><input name="email" type="email" required placeholder="jane@example.com"></div>
+          <div class="form-group"><label>Username</label><input name="username" required placeholder="jane (no spaces)"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Email (for password reset)</label><input name="email" type="email" placeholder="jane@example.com (optional)"></div>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Temp Password</label><input name="password" type="password" required placeholder="They can change this later"></div>
@@ -1962,25 +1972,27 @@ async function addUser(e) {
   e.preventDefault();
   const f = e.target;
   const name = f.uname.value.trim();
-  const email = f.email.value.trim().toLowerCase();
+  const uname = f.username.value.trim().toLowerCase().replace(/\s+/g,'_');
+  const realEmail = f.email.value.trim().toLowerCase();
+  // If no real email, use a placeholder so Supabase Auth can create the account
+  const authEmail = realEmail || `${uname}@lockers.internal`;
   const password = f.password.value;
   const role = f.role.value;
   const res = document.getElementById('au-result');
   try {
-    // Create Supabase Auth account for this staff member
     const signupRes = await fetch(`${SUPA_URL}/auth/v1/signup`, {
       method:'POST',
       headers:{'apikey':SUPA_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({email,password})
+      body:JSON.stringify({email:authEmail,password})
     });
     const signupData = await signupRes.json();
     if (signupData.error) throw new Error(signupData.error.message||'Auth signup failed.');
     const authId = signupData.user?.id || signupData.id;
-    // Store profile + role in sl_users (no password stored here)
-    const newUser = { id:genId(), name, username:email, email, role, authId };
+    const newUser = { id:genId(), name, username:uname, email:authEmail, role, authId };
     S.data.users.push(newUser);
-    await db.upsert('sl_users',{id:newUser.id,name,username:email,email,role,auth_id:authId||null});
-    if (res) res.innerHTML=`<div class="alert alert-success">${esc(name)} added as ${role}. They can log in with ${esc(email)}.</div>`;
+    await db.upsert('sl_users',{id:newUser.id,name,username:uname,email:authEmail,role,auth_id:authId||null});
+    const loginHint = realEmail ? `email ${esc(authEmail)}` : `username <strong>${esc(uname)}</strong>`;
+    if (res) res.innerHTML=`<div class="alert alert-success">${esc(name)} added as ${role}. They log in with ${loginHint}.</div>`;
     f.reset();
     render();
   } catch(err) {
