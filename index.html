@@ -1154,7 +1154,7 @@ async function saveInfoPage(noteKey) {
   const btn = document.getElementById(`ip-save-${noteKey}`);
   if (btn) btn.textContent = 'Saving…';
   try {
-    await db.upsert('sl_config', [{ key: `info.${noteKey}`, val: content }]);
+    await supa('sl_config', 'POST', [{ key: `info.${noteKey}`, val: content }], '?on_conflict=key', 'resolution=merge-duplicates,return=minimal');
     if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 1800); }
   } catch(e) {
     if (btn) btn.textContent = 'Save';
