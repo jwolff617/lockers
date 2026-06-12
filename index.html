@@ -64,7 +64,6 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 /* Screens */
 .screen{}
 .screen-title{font-size:17px;font-weight:700;margin-bottom:10px}
-.screen-sub{display:none}
 .section-header{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:14px 0 6px}
 .card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px}
 .card h3{font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text2)}
@@ -492,20 +491,21 @@ function nav(path) {
 // ════════════════════════════════════════════════════
 async function loadAll() {
   if (S.loaded) return;
+  const safe = (p) => p.catch(e => { console.warn('loadAll query failed:', e?.message||e); return []; });
   try {
     const [partRows, lockerRows, barRows, ciRows, chatRows, userRows, btRows, sunRows, pwRows, msgRows, ctrRows, setupRows] = await Promise.all([
-      db.select('sl_participants','?select=*&order=name.asc'),
-      db.select('sl_lockers','?select=*&order=id.asc'),
-      db.select('sl_bar_recs','?select=*&order=date.desc'),
-      db.select('sl_checkins',`?select=*&date=eq.${isoDate()}`),
-      db.select('sl_chat','?select=*&order=ts.asc&limit=200'),
-      db.select('sl_users','?select=*'),
-      db.select('sl_bag_tag','?select=*'),
-      db.select('sl_sunday_meetings','?select=*&order=date.desc'),
-      db.select('sl_pw_reset','?select=*&order=date.desc'),
-      db.select('sl_part_messages','?select=*&order=ts.desc&limit=100').catch(()=>[]),
-      db.select('sl_ci_counter',`?date=eq.${isoDate()}`),
-      db.select('sl_setup','?key=like.info.*').catch(()=>[]),
+      safe(db.select('sl_participants','?select=*&order=name.asc')),
+      safe(db.select('sl_lockers','?select=*&order=id.asc')),
+      safe(db.select('sl_bar_recs','?select=*&order=date.desc')),
+      safe(db.select('sl_checkins',`?select=*&date=eq.${isoDate()}`)),
+      safe(db.select('sl_chat','?select=*&order=ts.asc&limit=200')),
+      safe(db.select('sl_users','?select=*')),
+      safe(db.select('sl_bag_tag','?select=*')),
+      safe(db.select('sl_sunday_meetings','?select=*&order=date.desc')),
+      safe(db.select('sl_pw_reset','?select=*&order=date.desc')),
+      safe(db.select('sl_part_messages','?select=*&order=ts.desc&limit=100')),
+      safe(db.select('sl_ci_counter',`?date=eq.${isoDate()}`)),
+      safe(db.select('sl_setup','?key=like.info.*')),
     ]);
     const lockerObj = {};
     (lockerRows||[]).forEach(r => { lockerObj[r.id] = lockerFromDb(r); });
@@ -530,7 +530,7 @@ async function loadAll() {
     S.data.infoPages = infoPages;
     S.loaded = true;
   } catch(e) {
-    console.error('loadAll:', e);
+    console.error('loadAll fatal:', e);
   }
 }
 
@@ -1053,8 +1053,15 @@ async function doLogin(role) {
     closeModal();
     S.loaded = false; // force fresh load with new session
     await loadAll();
-    if (_loginCallback) _loginCallback();
-    else render();
+    if (_loginCallback) {
+      _loginCallback();
+    } else {
+      // header login: navigate to the user's home category
+      const roleHome = { clerk:'Clerk', ec:'EC', sec:'sec', part:'part' };
+      const home = roleHome[S.user?.role];
+      if (home) nav([home]);
+      else render();
+    }
   } catch(e) {
     errEl.innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`;
   }
@@ -1142,7 +1149,6 @@ regScreen('part.message_board', () => {
   return `
     <div class="screen">
       <div class="screen-title">Message Board</div>
-      <div class="screen-sub">Lockers.part.message_board — Community board for all participants</div>
       <div class="card">
         <div class="form-group"><label>Post a Message</label>
           <textarea id="mb-text" rows="2" placeholder="Write a message for fellow participants…"></textarea>
@@ -1168,7 +1174,6 @@ function makePartLookup(screen, renderResult) {
   return () => `
     <div class="screen">
       <div class="screen-title">${DICT.part.notes[screen].label}</div>
-      <div class="screen-sub">Lockers.part.${screen}</div>
       <div class="card">
         <div class="form-group"><label>Your Name or Locker Number</label>
           <input id="pl-query" type="text" placeholder="e.g. Alex Rivera or 42" onkeydown="if(event.key==='Enter')partLookup('${screen}')">
@@ -1221,7 +1226,6 @@ function partLookup(screen) {
 regScreen('sec.search', () => `
   <div class="screen">
     <div class="screen-title">Search Participant</div>
-    <div class="screen-sub">Lockers.sec.search</div>
     <div class="card">
       <div class="form-group"><label>Name or Locker Number</label>
         <input id="sec-q" type="text" placeholder="Search…" onkeydown="if(event.key==='Enter')secSearch()">
@@ -1292,7 +1296,6 @@ async function logCheckOut(pid, name) {
 regScreen('sec.checkin', () => `
   <div class="screen">
     <div class="screen-title">Check In</div>
-    <div class="screen-sub">Lockers.sec.checkin — Search first, then check in from the result</div>
     <div class="card">
       <div class="form-group"><label>Name or Locker Number</label>
         <input id="ci-q" type="text" placeholder="Search participant…" onkeydown="if(event.key==='Enter')ciSearch()">
@@ -1329,7 +1332,6 @@ regScreen('sec.checkout', () => {
     : '<div style="color:var(--text3);font-size:13px;text-align:center;padding:24px">No active sessions.</div>';
   return `<div class="screen">
     <div class="screen-title">Check Out</div>
-    <div class="screen-sub">Lockers.sec.checkout — Active sessions</div>
     ${rows}
   </div>`;
 });
@@ -1337,7 +1339,6 @@ regScreen('sec.checkout', () => {
 regScreen('sec.status', () => `
   <div class="screen">
     <div class="screen-title">Participant Status</div>
-    <div class="screen-sub">Lockers.sec.status</div>
     <div class="card">
       <div class="form-group"><label>Name or Locker Number</label>
         <input id="ss-q" type="text" placeholder="Search…" onkeydown="if(event.key==='Enter')ssSearch()">
@@ -1375,7 +1376,6 @@ regScreen('sec.session_timer', () => {
     : '<div style="color:var(--text3);font-size:13px;text-align:center;padding:24px">No active sessions.</div>';
   return `<div class="screen">
     <div class="screen-title">Session Timers</div>
-    <div class="screen-sub">Lockers.sec.session_timer</div>
     <div id="session-refresh-note" style="font-size:11px;color:var(--text3);margin-bottom:8px">Refreshed on each navigation. Re-visit to update times.</div>
     ${rows}
   </div>`;
@@ -1387,7 +1387,6 @@ regScreen('sec.counter', () => {
   const count = ctr.date === today ? ctr.count : 0;
   return `<div class="screen">
     <div class="screen-title">Check-In Counter</div>
-    <div class="screen-sub">Lockers.sec.counter — Today: ${fmtDate(today)}</div>
     <div class="card" style="text-align:center;padding:30px">
       <div style="font-size:64px;font-weight:900;color:var(--accent);line-height:1">${count}</div>
       <div style="font-size:14px;color:var(--text3);margin-top:6px">check-ins today</div>
@@ -1428,10 +1427,8 @@ function renderParticipantSearch(cat) {
   }).join('');
   return `<div class="screen">
     <div class="screen-title">All Participants</div>
-    <div class="screen-sub">Lockers.${cat}.participants.search — ${active.length} active</div>
-    <div class="flex gap-2 mb-3">
-      <input id="ps-q" type="text" style="flex:1;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px" placeholder="Filter by name…" oninput="filterParticipants(this.value)">
-      <button class="btn btn-primary btn-sm" onclick="nav(['${cat}','participants','new'])">+ New</button>
+    <div class="mb-3">
+      <input id="ps-q" type="text" style="width:100%;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px" placeholder="Filter by name…" oninput="filterParticipants(this.value)">
     </div>
     <div style="overflow-x:auto">
       <table id="pt-table">
@@ -1463,7 +1460,6 @@ function renderParticipantForm(cat, p) {
   const workDatesStr = (v.workDates||[]).join(', ');
   return `<div class="screen">
     <div class="screen-title">${isNew?'New':'Edit'} Participant</div>
-    <div class="screen-sub">Lockers.${cat}.participants.${isNew?'new':'edit'}</div>
     <form onsubmit="saveParticipantForm(event,'${cat}','${v.id}')">
       <div class="card">
         <div class="form-row">
@@ -1483,7 +1479,6 @@ function renderParticipantForm(cat, p) {
         <div class="flex gap-2 mt-3">
           <input type="hidden" name="id" value="${v.id}">
           <button type="submit" class="btn btn-primary">Save</button>
-          <button type="button" class="btn" onclick="nav(['${cat}','participants','search'])">Cancel</button>
           ${!isNew?`<button type="button" class="btn btn-danger" onclick="archiveParticipant('${v.id}','${cat}')">Archive</button>`:''}
         </div>
       </div>
@@ -1531,7 +1526,7 @@ async function archiveParticipant(pid, cat) {
   regScreen(`${cat}.participants.edit`, () => {
     const pid = window._editPid;
     const p = pid ? S.data.participants.find(x=>x.id===pid) : null;
-    if (!p) return `<div class="coming-soon"><div class="cs-note">Select a participant from Search to edit.</div><button class="btn mt-3" onclick="nav(['${cat}','participants','search'])">Go to Search</button></div>`;
+    if (!p) return `<div class="coming-soon"><div class="cs-note">Navigate to a participant to edit.</div></div>`;
     return renderParticipantForm(cat, p);
   });
 });
@@ -1541,7 +1536,6 @@ async function archiveParticipant(pid, cat) {
   regScreen(`${cat}.participants.renew`, () => `
     <div class="screen">
       <div class="screen-title">Renew Participant</div>
-      <div class="screen-sub">Lockers.${cat}.participants.renew</div>
       <div class="card">
         <div class="form-group"><label>Search Participant</label>
           <input id="rn-q" type="text" placeholder="Name or locker number…" onkeydown="if(event.key==='Enter')renewSearch('${cat}')">
@@ -1554,7 +1548,6 @@ async function archiveParticipant(pid, cat) {
   regScreen(`${cat}.participants.release`, () => `
     <div class="screen">
       <div class="screen-title">Release Locker</div>
-      <div class="screen-sub">Lockers.${cat}.participants.release</div>
       <div class="card">
         <div class="form-group"><label>Locker Number</label>
           <input id="rl-num" type="number" min="1" max="500" placeholder="e.g. 42">
@@ -1618,7 +1611,6 @@ function renderLockerInventory(cat) {
   }).join('');
   return `<div class="screen">
     <div class="screen-title">Locker Inventory</div>
-    <div class="screen-sub">Lockers.${cat}.lockers.inventory</div>
     <div class="locker-legend">
       <div class="leg-item"><div class="leg-dot" style="background:#d1fae5;border:1px solid #6ee7b7"></div> Available (${available})</div>
       <div class="leg-item"><div class="leg-dot" style="background:#fee2e2;border:1px solid #fca5a5"></div> Assigned (${assigned})</div>
@@ -1651,7 +1643,6 @@ function lockerClick(id, cat) {
   regScreen(`${cat}.lockers.assign`, () => `
     <div class="screen">
       <div class="screen-title">Assign Locker</div>
-      <div class="screen-sub">Lockers.${cat}.lockers.assign</div>
       <div class="card">
         <div class="form-row">
           <div class="form-group"><label>Locker Number</label><input id="as-num" type="number" min="1" max="500" placeholder="e.g. 42"></div>
@@ -1706,7 +1697,6 @@ async function doAssignLocker(cat) {
       : '<div class="alert alert-success">No pending recommendations.</div>';
     return `<div class="screen">
       <div class="screen-title">Bar Recommendations</div>
-      <div class="screen-sub">Lockers.${cat}.bars.recommendations — ${recs.length} pending</div>
       ${rows}
     </div>`;
   });
@@ -1714,7 +1704,6 @@ async function doAssignLocker(cat) {
   regScreen(`${cat}.bars.issue`, () => `
     <div class="screen">
       <div class="screen-title">Issue Bar</div>
-      <div class="screen-sub">Lockers.${cat}.bars.issue</div>
       <form onsubmit="doIssueBar(event,'${cat}')">
         <div class="card">
           <div class="form-group"><label>Participant Name</label><input name="pname" required placeholder="Start typing name…"></div>
@@ -1786,7 +1775,6 @@ async function dismissRec(recId, cat) {
     }).join('');
     return `<div class="screen">
       <div class="screen-title">Team Chat</div>
-      <div class="screen-sub">Lockers.${cat}.chat.team — updates every 15s</div>
       <div class="chat-msgs" id="chat-feed">${msgHtml}</div>
       <div class="flex gap-2">
         <input id="chat-in" type="text" style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px" placeholder="Message…" onkeydown="if(event.key==='Enter')sendChat()">
@@ -1838,7 +1826,6 @@ function startChatPoll() {
       </tr>`).join('');
     return `<div class="screen">
       <div class="screen-title">Manage Users</div>
-      <div class="screen-sub">Lockers.${cat}.users.manage</div>
       <div style="overflow-x:auto">
         <table><thead><tr><th>Name</th><th>Role</th><th>Username</th><th>Actions</th></tr></thead>
         <tbody>${rows||'<tr><td colspan="4" style="color:var(--text3);text-align:center">No users found</td></tr>'}</tbody></table>
@@ -1867,7 +1854,6 @@ async function resetUserPw(uid, name, cat) {
   regScreen(`${cat}.bars.edit`, () => `
     <div class="screen">
       <div class="screen-title">Edit Bar</div>
-      <div class="screen-sub">Lockers.${cat}.bars.edit</div>
       <div class="card">
         <div class="form-group"><label>Participant Name</label>
           <input id="be-q" type="text" placeholder="Search barred participant…" onkeydown="if(event.key==='Enter')barEditSearch('${cat}')">
@@ -1932,7 +1918,6 @@ async function liftBar(pid) {
   regScreen(`${cat}.attendance.worker`, () => `
     <div class="screen">
       <div class="screen-title">Worker Attendance</div>
-      <div class="screen-sub">Lockers.${cat}.attendance.worker — Log work shift attendance</div>
       <div class="card">
         <div class="form-group"><label>Participant Name or Locker</label>
           <input id="wa-q" type="text" placeholder="Search…" onkeydown="if(event.key==='Enter')waSearch('${cat}')">
@@ -2016,7 +2001,6 @@ async function addWorkDate(pid) {
 regScreen('Clerk.attendance.worker_edit', () => `
   <div class="screen">
     <div class="screen-title">Edit Worker Attendance</div>
-    <div class="screen-sub">Lockers.Clerk.attendance.worker_edit</div>
     <div class="card">
       <div class="form-group"><label>Participant</label>
         <input id="wa-q" type="text" placeholder="Search…" onkeydown="if(event.key==='Enter')waSearch('Clerk')">
@@ -2033,7 +2017,6 @@ regScreen('Clerk.attendance.worker_edit', () => `
   regScreen(`${cat}.attendance.mandatory`, () => `
     <div class="screen">
       <div class="screen-title">Mandatory Shifts</div>
-      <div class="screen-sub">Lockers.${cat}.attendance.mandatory — Assign makeup shifts</div>
       <div class="card">
         <div class="form-group"><label>Participant</label>
           <input id="ms-q" type="text" placeholder="Search…" onkeydown="if(event.key==='Enter')msSearch('${cat}')">
@@ -2115,7 +2098,6 @@ async function removeMandatory(pid, date) {
       : '<tr><td colspan="3" style="color:var(--text3);text-align:center">No check-ins today.</td></tr>';
     return `<div class="screen">
       <div class="screen-title">Check-in Log</div>
-      <div class="screen-sub">Lockers.${cat}.attendance.checkin_log — Today: ${fmtDate(today)}</div>
       <div style="overflow-x:auto">
         <table><thead><tr><th>Name</th><th>Type</th><th>Time</th></tr></thead>
         <tbody>${rows}</tbody></table>
@@ -2160,7 +2142,6 @@ function renderWorkSchedule(cat, editable) {
   }).join('');
   return `<div class="screen">
     <div class="screen-title">${editable?'Edit ':''}Work Schedule</div>
-    <div class="screen-sub">Lockers.${cat}.schedule.work${editable?'_edit':''}</div>
     ${!sortedDates.length?'<div class="alert alert-info">No upcoming work dates on record.</div>':blocks}
   </div>`;
 }
@@ -2202,7 +2183,6 @@ function renderLunchSchedule(cat, editable) {
   }).join('');
   return `<div class="screen">
     <div class="screen-title">${editable?'Edit ':''}Power Lunch Schedule</div>
-    <div class="screen-sub">Lockers.${cat}.schedule.lunch${editable?'_edit':''}</div>
     <div class="card">${rows||'<div style="color:var(--text3)">No power lunch dates on record.</div>'}</div>
   </div>`;
 }
@@ -2244,7 +2224,6 @@ function renderSundayAttendance(cat, editable) {
   }).join('');
   return `<div class="screen">
     <div class="screen-title">Sunday Meeting Attendance</div>
-    <div class="screen-sub">Lockers.${cat}.sunday.attendance</div>
     ${editable?`<button class="btn btn-primary btn-sm mb-3" onclick="newSundayMeeting()">+ New Meeting</button>`:''}
     ${blocks||'<div class="alert alert-info">No Sunday meetings recorded.</div>'}
     <div id="sunday-edit-area"></div>
@@ -2320,7 +2299,6 @@ function renderReports(cat, full) {
 
   let html = `<div class="screen">
     <div class="screen-title">${full?'Report Center':'Reports'}</div>
-    <div class="screen-sub">Lockers.${cat}.reports.${full?'full':'view'}</div>
     <div class="section-header">Participants</div>
     ${statGrid([
       [active.length,'Total Active','var(--accent)'],
@@ -2397,7 +2375,6 @@ regScreen('Clerk.center.reports', () => renderReports('Clerk', true));
   regScreen(`${cat}.search.all`, () => `
     <div class="screen">
       <div class="screen-title">Search All</div>
-      <div class="screen-sub">Lockers.${cat}.search.all — Search participants, lockers, and bars</div>
       <div class="card">
         <div class="form-group"><label>Search</label>
           <input id="sa-q" type="text" placeholder="Name, locker number, or status…" onkeydown="if(event.key==='Enter')globalSearch('${cat}')">
@@ -2456,9 +2433,6 @@ function globalSearch(cat) {
 
 // ════════════════════════════════════════════════════
 //  CLERK — BAG & TAG
-// ════════════════════════════════════════════════════
-// ════════════════════════════════════════════════════
-//  CLERK — BAG & TAG (combined screen under center.bag_tag)
 // ════════════════════════════════════════════════════
 regScreen('Clerk.center.bag_tag', () => {
   const items = S.data.bagTag.filter(b=>!b.archived);
@@ -2528,7 +2502,6 @@ async function archiveBagTag(id) {
   regScreen(`${cat}.lockers.release`, () => `
     <div class="screen">
       <div class="screen-title">Release Locker</div>
-      <div class="screen-sub">Lockers.${cat}.lockers.release</div>
       <div class="card">
         <div class="form-group"><label>Locker Number (1–500)</label>
           <input id="lr-num" type="number" min="1" max="500" placeholder="e.g. 42">
@@ -2549,7 +2522,6 @@ async function archiveBagTag(id) {
       : '<div style="color:var(--text3)">No broken lockers.</div>';
     return `<div class="screen">
       <div class="screen-title">Broken Lockers</div>
-      <div class="screen-sub">Lockers.${cat}.lockers.broken — ${broken.length} broken</div>
       <div class="card">
         <div style="margin-bottom:12px">${rows}</div>
         <div class="form-group"><label>Mark Locker as Broken</label>
@@ -2614,7 +2586,6 @@ async function markBroken() {
       : '<div style="color:var(--text3)">No archived participants.</div>';
     return `<div class="screen">
       <div class="screen-title">Archived Participants</div>
-      <div class="screen-sub">Lockers.${cat}.participants.archive — ${archived.length} archived</div>
       <div class="card">${rows}</div>
     </div>`;
   });
@@ -2703,8 +2674,10 @@ document.addEventListener('keydown', e => {
 // ════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════
-(function init() {
+(async function init() {
   applyTheme();
+  render();
+  await loadAll();
   render();
 })();
 </script>
