@@ -1058,7 +1058,8 @@ async function doLogin(role) {
       if (!username.includes('@')) {
         const rows = await db.rpc('get_staff_email', { p_identifier: username });
         loginEmail = Array.isArray(rows) ? rows[0]?.get_staff_email : rows?.get_staff_email;
-        if (!loginEmail) throw new Error('Username not found.');
+        // Fall back to @lockers.internal pattern if RPC returned null
+        if (!loginEmail) loginEmail = `${username.toLowerCase()}@lockers.internal`;
       }
       // Authenticate via Supabase Auth, then fetch role from sl_users
       const session = await supaSignIn(loginEmail, pw);
@@ -1154,7 +1155,7 @@ async function saveInfoPage(noteKey) {
   const btn = document.getElementById(`ip-save-${noteKey}`);
   if (btn) btn.textContent = 'Saving…';
   try {
-    await supa('sl_config', 'POST', [{ key: `info.${noteKey}`, val: content }], '?on_conflict=key', 'resolution=merge-duplicates,return=minimal');
+    await supa('sl_config', 'POST', [{ key: `info.${noteKey}`, val: content }], '?on_conflict=key', 'resolution=merge-duplicates');
     if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 1800); }
   } catch(e) {
     if (btn) btn.textContent = 'Save';
