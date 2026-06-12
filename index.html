@@ -1548,7 +1548,7 @@ async function archiveParticipant(pid, cat) {
   regScreen(`${cat}.participants.edit`, () => {
     const pid = window._editPid;
     const p = pid ? S.data.participants.find(x=>x.id===pid) : null;
-    if (!p) { S.path = S.path.slice(0,-1); render(); return ''; }
+    if (!p) { S.path = [cat, 'participants']; return renderParticipantSearch(cat); }
     return renderParticipantForm(cat, p);
   });
 });
