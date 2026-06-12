@@ -224,6 +224,7 @@ const db = {
   upsert: (t, d) => supa(t, 'POST', Array.isArray(d)?d:[d], '?on_conflict=id', 'resolution=merge-duplicates,return=minimal'),
   delete: (t, q) => supa(t, 'DELETE', null, q),
   update: (t, d, q) => supa(t, 'PATCH', d, q),
+  rpc: (fn, params) => supa(`rpc/${fn}`, 'POST', params),
 };
 
 // ════════════════════════════════════════════════════
@@ -1049,14 +1050,9 @@ async function doLogin(role) {
       // Staff: first try sl_users username+password (existing app pattern)
       const username = document.getElementById('li-email')?.value?.trim();
       if (!username) { errEl.innerHTML = '<div class="alert alert-danger">Username required.</div>'; return; }
-      const uRows = await db.select('sl_users', `?select=*`);
-      if (!uRows || uRows.length === 0) throw new Error('Could not load staff directory. Check Supabase connection.');
-      const matched = (uRows||[]).find(u =>
-        (u.username?.toLowerCase() === username.toLowerCase() ||
-         u.email?.toLowerCase() === username.toLowerCase()) &&
-        u.password === pw
-      );
-      if (!matched) throw new Error(`Invalid credentials. (${uRows.length} staff accounts checked)`);
+      const rows = await db.rpc('authenticate_staff', { p_identifier: username, p_password: pw });
+      const matched = Array.isArray(rows) ? rows[0] : null;
+      if (!matched) throw new Error('Invalid username/email or password.');
       S.user = { id:matched.id, name:matched.name||username, role:(matched.role||'').toLowerCase() };
     }
     closeModal();
