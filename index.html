@@ -1030,26 +1030,22 @@ async function doLogin(role) {
       const uRows = await db.select('sl_users', `?username=eq.${encodeURIComponent(username)}&limit=1`);
       const matched = (uRows||[]).find(u => u.password === pw);
       if (matched) {
-        // Username+password matched sl_users — try Supabase Auth for session token (optional)
+        const normRole = (matched.role||'').toLowerCase();
+        S.user = { id:matched.id, name:matched.name||username, role:normRole };
+        // Optional: try Supabase Auth session token if email login is configured
         try {
-          // Try email login in case Supabase Auth is set up
           const emailGuess = username.includes('@') ? username : null;
           if (emailGuess) {
             const session = await supaSignIn(emailGuess, pw);
-            S.user = { id:matched.id, name:matched.name||username, role:matched.role, access_token:session.access_token };
-          } else {
-            S.user = { id:matched.id, name:matched.name||username, role:matched.role };
+            S.user.access_token = session.access_token;
           }
-        } catch {
-          // Supabase Auth not configured for this user — use anon key for API calls
-          S.user = { id:matched.id, name:matched.name||username, role:matched.role };
-        }
+        } catch { /* anon key is fine */ }
       } else {
         // Try pure Supabase Auth (email format)
         const emailTry = username.includes('@') ? username : username + '@sharelockers.org';
         const session = await supaSignIn(emailTry, pw);
         const byEmail = await db.select('sl_users', `?username=eq.${encodeURIComponent(username)}&limit=1`);
-        const uRole = byEmail?.[0]?.role || role;
+        const uRole = ((byEmail?.[0]?.role) || role || '').toLowerCase();
         const uName = byEmail?.[0]?.name || username;
         S.user = { id:session.user?.id, name:uName, role:uRole, access_token:session.access_token };
       }
@@ -1456,6 +1452,7 @@ function filterParticipants(q) {
 }
 
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.participants`,        () => renderParticipantSearch(cat));
   regScreen(`${cat}.participants.search`, () => renderParticipantSearch(cat));
 });
 
@@ -1649,6 +1646,7 @@ function lockerClick(id, cat) {
 }
 
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.lockers`,           () => renderLockerInventory(cat));
   regScreen(`${cat}.lockers.inventory`, () => renderLockerInventory(cat));
   regScreen(`${cat}.lockers.assign`, () => `
     <div class="screen">
@@ -1686,6 +1684,7 @@ async function doAssignLocker(cat) {
 //  EC / CLERK — BARS
 // ════════════════════════════════════════════════════
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.bars`, () => { S.path=[cat,'bars','recommendations']; render(); });
   regScreen(`${cat}.bars.recommendations`, () => {
     const recs = S.data.barRecs.filter(r=>!r.barIssued&&!r.dismissed);
     const rows = recs.length
@@ -1775,6 +1774,7 @@ async function dismissRec(recId, cat) {
 //  EC / CLERK — CHAT
 // ════════════════════════════════════════════════════
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.chat`, () => { S.path=[cat,'chat','team']; render(); });
   regScreen(`${cat}.chat.team`, () => {
     const msgs = S.data.chatMessages;
     const msgHtml = msgs.map(m=>{
@@ -1827,6 +1827,7 @@ function startChatPoll() {
 //  EC / CLERK — USERS
 // ════════════════════════════════════════════════════
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.users`, () => { S.path=[cat,'users','manage']; render(); });
   regScreen(`${cat}.users.manage`, () => {
     const rows = S.data.users.filter(u=>u.role!=='part').map(u=>`
       <tr>
@@ -1927,6 +1928,7 @@ async function liftBar(pid) {
 //  EC / CLERK — ATTENDANCE: WORKER
 // ════════════════════════════════════════════════════
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.attendance`, () => { S.path=[cat,'attendance','worker']; render(); });
   regScreen(`${cat}.attendance.worker`, () => `
     <div class="screen">
       <div class="screen-title">Worker Attendance</div>
@@ -2173,6 +2175,7 @@ async function removeWorkDate(pid, date) {
 }
 
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.schedule`, () => { S.path=[cat,'schedule','work']; render(); });
   regScreen(`${cat}.schedule.work`, () => renderWorkSchedule(cat, false));
 });
 regScreen('Clerk.schedule.work_edit', () => renderWorkSchedule('Clerk', true));
@@ -2249,6 +2252,7 @@ function renderSundayAttendance(cat, editable) {
 }
 
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.sunday`, () => { S.path=[cat,'sunday','attendance']; render(); });
   regScreen(`${cat}.sunday.attendance`, () => renderSundayAttendance(cat, false));
 });
 regScreen('Clerk.attendance.sunday_edit', () => renderSundayAttendance('Clerk', true));
@@ -2378,15 +2382,18 @@ function renderReports(cat, full) {
   return html;
 }
 
-// EC: reports.view (EC has one reports note with view detail)
+// EC: reports note → default to view
+regScreen('EC.reports',      () => renderReports('EC', false));
 regScreen('EC.reports.view', () => renderReports('EC', false));
 // Clerk: reports moved under center.reports — Clerk always gets full report
+regScreen('Clerk.center',         () => { S.path=['Clerk','center','reports']; render(); });
 regScreen('Clerk.center.reports', () => renderReports('Clerk', true));
 
 // ════════════════════════════════════════════════════
 //  EC / CLERK — GLOBAL SEARCH
 // ════════════════════════════════════════════════════
 ['EC','Clerk'].forEach(cat => {
+  regScreen(`${cat}.search`, () => { S.path=[cat,'search','all']; render(); });
   regScreen(`${cat}.search.all`, () => `
     <div class="screen">
       <div class="screen-title">Search All</div>
