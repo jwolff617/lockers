@@ -272,7 +272,7 @@ function lockerToDb(l) {
 }
 
 function userFromDb(r) {
-  return { id:r.id, username:r.username, password:r.password, role:r.role, name:r.name };
+  return { id:r.id, username:r.username, email:r.email||r.username, role:r.role, name:r.name, authId:r.auth_id };
 }
 
 function barRecFromDb(r) {
@@ -1018,7 +1018,7 @@ function showLoginModal(role, callback) {
     <h2>Log In — ${lbl}</h2>
     <p class="modal-sub">${isShared ? 'Shared participant access' : 'Enter your credentials'}</p>
     <div id="login-err"></div>
-    ${isShared ? '' : '<div class="form-group"><label>Username</label><input id="li-email" type="text" placeholder="your username" autocomplete="username"></div>'}
+    ${isShared ? '' : '<div class="form-group"><label>Email</label><input id="li-email" type="email" placeholder="your email" autocomplete="email"></div>'}
     <div class="form-group"><label>Password</label><input id="li-pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin('${role||''}')"></div>
     <button class="btn btn-primary w-full" onclick="doLogin('${role||''}')">Log In</button>`;
   document.getElementById('modal-overlay').classList.add('open');
@@ -1041,19 +1041,28 @@ async function doLogin(role) {
 
   try {
     if (role === 'part') {
-      // Participant: shared credential stored in sl_users with role='part'
-      const rows = await db.select('sl_users', `?role=eq.part&limit=10`);
-      const match = (rows||[]).find(u => u.password === pw);
-      if (!match) throw new Error('Invalid participant password');
-      S.user = { id:match.id, name:match.name||'Participant', role:'part' };
+      // Participant: shared password stored in sl_setup under key 'part.password'
+      const storedPw = S.data.setup?.['part.password'];
+      if (!storedPw) throw new Error('Participant access is not configured. Contact staff.');
+      if (pw !== storedPw) throw new Error('Invalid participant password.');
+      S.user = { id:'part', name:'Participant', role:'part' };
     } else {
       // Staff: first try sl_users username+password (existing app pattern)
       const username = document.getElementById('li-email')?.value?.trim();
       if (!username) { errEl.innerHTML = '<div class="alert alert-danger">Username required.</div>'; return; }
-      const rows = await db.rpc('authenticate_staff', { p_identifier: username, p_password: pw });
-      const matched = Array.isArray(rows) ? rows[0] : null;
-      if (!matched) throw new Error('Invalid username/email or password.');
-      S.user = { id:matched.id, name:matched.name||username, role:(matched.role||'').toLowerCase() };
+      // Authenticate via Supabase Auth, then fetch role from sl_users
+      const session = await supaSignIn(username, pw);
+      const token = session.access_token;
+      const authedEmail = session.user?.email;
+      if (!token || !authedEmail) throw new Error('Authentication failed.');
+      // Fetch this user's record from sl_users using their authenticated session
+      const uRows = await fetch(`${SUPA_URL}/rest/v1/sl_users?select=id,name,email,role`, {
+        headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${token}` }
+      }).then(r => r.json());
+      const ae = authedEmail.toLowerCase();
+      const matched = Array.isArray(uRows) ? uRows.find(u => u.email?.toLowerCase()===ae || u.username?.toLowerCase()===ae) : null;
+      if (!matched) throw new Error('No staff record found for this account. Contact admin to link your account.');
+      S.user = { id:matched.id, name:matched.name||authedEmail, role:(matched.role||'').toLowerCase(), access_token:token };
     }
     closeModal();
     S.loaded = false; // force fresh load with new session
@@ -1908,12 +1917,12 @@ function startChatPoll() {
   regScreen(`${cat}.users.manage`, () => {
     const rows = S.data.users.filter(u=>u.role!=='part').map(u=>`
       <tr>
-        <td style="font-weight:700">${esc(u.name||u.username)}</td>
+        <td style="font-weight:700">${esc(u.name||u.email)}</td>
         <td><span class="badge badge-blue">${esc(u.role)}</span></td>
-        <td style="font-family:monospace;font-size:11px">${esc(u.username)}</td>
+        <td style="font-family:monospace;font-size:11px">${esc(u.email||u.username)}</td>
         <td>
-          <button class="btn btn-sm" onclick="resetUserPw('${u.id}','${esc(u.name||u.username)}','${cat}')">Reset PW</button>
-          <button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="removeUser('${u.id}','${esc(u.name||u.username)}')">Remove</button>
+          <button class="btn btn-sm" onclick="resetUserPw('${u.id}','${esc(u.name||u.email)}')">Reset PW</button>
+          <button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="removeUser('${u.id}','${esc(u.name||u.email)}')">Remove</button>
         </td>
       </tr>`).join('');
     const pwLogRows = S.data.pwResetLog.slice(0,10).map(r=>`
@@ -1921,17 +1930,17 @@ function startChatPoll() {
     return `<div class="screen">
       <div class="screen-title">Manage Users</div>
       <div style="overflow-x:auto">
-        <table><thead><tr><th>Name</th><th>Role</th><th>Username</th><th>Actions</th></tr></thead>
+        <table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Actions</th></tr></thead>
         <tbody>${rows||'<tr><td colspan="4" style="color:var(--text3);text-align:center">No users found</td></tr>'}</tbody></table>
       </div>
       <div class="section-header mt-4">Add New User</div>
       <form class="card" onsubmit="addUser(event)">
         <div class="form-row">
           <div class="form-group"><label>Display Name</label><input name="uname" required placeholder="Jane Smith"></div>
-          <div class="form-group"><label>Username</label><input name="username" required placeholder="jane.smith"></div>
+          <div class="form-group"><label>Email (login)</label><input name="email" type="email" required placeholder="jane@example.com"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Password</label><input name="password" type="password" required placeholder="Temp password"></div>
+          <div class="form-group"><label>Temp Password</label><input name="password" type="password" required placeholder="They can change this later"></div>
           <div class="form-group"><label>Role</label>
             <select name="role"><option value="ec">EC</option><option value="clerk">Clerk</option><option value="sec">Security</option></select>
           </div>
@@ -1949,13 +1958,31 @@ function startChatPoll() {
 async function addUser(e) {
   e.preventDefault();
   const f = e.target;
-  const newUser = { id:genId(), name:f.uname.value.trim(), username:f.username.value.trim(), role:f.role.value, password:f.password.value };
-  S.data.users.push(newUser);
-  await db.upsert('sl_users',{id:newUser.id,name:newUser.name,username:newUser.username,role:newUser.role,password:newUser.password});
+  const name = f.uname.value.trim();
+  const email = f.email.value.trim().toLowerCase();
+  const password = f.password.value;
+  const role = f.role.value;
   const res = document.getElementById('au-result');
-  if (res) res.innerHTML=`<div class="alert alert-success">User ${esc(newUser.name)} added as ${newUser.role}.</div>`;
-  f.reset();
-  render();
+  try {
+    // Create Supabase Auth account for this staff member
+    const signupRes = await fetch(`${SUPA_URL}/auth/v1/signup`, {
+      method:'POST',
+      headers:{'apikey':SUPA_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
+    const signupData = await signupRes.json();
+    if (signupData.error) throw new Error(signupData.error.message||'Auth signup failed.');
+    const authId = signupData.user?.id || signupData.id;
+    // Store profile + role in sl_users (no password stored here)
+    const newUser = { id:genId(), name, username:email, email, role, authId };
+    S.data.users.push(newUser);
+    await db.upsert('sl_users',{id:newUser.id,name,username:email,email,role,auth_id:authId||null});
+    if (res) res.innerHTML=`<div class="alert alert-success">${esc(name)} added as ${role}. They can log in with ${esc(email)}.</div>`;
+    f.reset();
+    render();
+  } catch(err) {
+    if (res) res.innerHTML=`<div class="alert alert-danger">${esc(err.message)}</div>`;
+  }
 }
 
 async function removeUser(uid, name) {
@@ -1965,17 +1992,22 @@ async function removeUser(uid, name) {
   render();
 }
 
-async function resetUserPw(uid, name, cat) {
-  const newPw = prompt(`New password for ${name}:`);
-  if (!newPw) return;
+async function resetUserPw(uid, name) {
   const u = S.data.users.find(x=>x.id===uid);
   if (!u) return;
-  u.password=newPw;
-  await db.upsert('sl_users',{id:uid,username:u.username,password:newPw,role:u.role,name:u.name});
+  const email = u.email||u.username;
+  if (!email||!email.includes('@')) { alert('No email on file for this user. Cannot send reset.'); return; }
+  if (!confirm(`Send password reset email to ${email}?`)) return;
+  const resetRes = await fetch(`${SUPA_URL}/auth/v1/recover`, {
+    method:'POST',
+    headers:{'apikey':SUPA_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({email})
+  });
   const log = { id:genId(), targetUser:name, resetBy:S.user?.name||'Unknown', date:isoDate() };
   S.data.pwResetLog.unshift(log);
   await db.upsert('sl_pw_reset',{id:log.id,target_user:log.targetUser,reset_by:log.resetBy,date:log.date});
-  alert(`Password reset for ${name}.`);
+  alert(`Password reset email sent to ${email}.`);
+  render();
 }
 
 // ════════════════════════════════════════════════════
