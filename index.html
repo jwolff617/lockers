@@ -1050,10 +1050,13 @@ async function doLogin(role) {
       const username = document.getElementById('li-email')?.value?.trim();
       if (!username) { errEl.innerHTML = '<div class="alert alert-danger">Username required.</div>'; return; }
       const uRows = await db.select('sl_users', `?select=*`);
+      if (!uRows || uRows.length === 0) throw new Error('Could not load staff directory. Check Supabase connection.');
       const matched = (uRows||[]).find(u =>
-        u.username?.toLowerCase() === username.toLowerCase() && u.password === pw
+        (u.username?.toLowerCase() === username.toLowerCase() ||
+         u.email?.toLowerCase() === username.toLowerCase()) &&
+        u.password === pw
       );
-      if (!matched) throw new Error('Invalid username or password.');
+      if (!matched) throw new Error(`Invalid credentials. (${uRows.length} staff accounts checked)`);
       S.user = { id:matched.id, name:matched.name||username, role:(matched.role||'').toLowerCase() };
     }
     closeModal();
