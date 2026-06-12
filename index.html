@@ -30,6 +30,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btn-primary:hover{background:var(--accent2);border-color:var(--accent2);color:#fff}
 .btn-danger{background:var(--danger);color:#fff;border-color:var(--danger);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;border:1.5px solid}
+.btn-warning{background:#D69E2E;color:#fff;border-color:#D69E2E;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;border:1.5px solid}
 .btn-sm{padding:3px 8px;font-size:11px}
 
 /* Map */
@@ -480,9 +481,15 @@ const S = {
 };
 
 function nav(path) {
-  S.path = Array.isArray(path) ? path : path.split('.').filter(Boolean);
+  const newPath = Array.isArray(path) ? path : path.split('.').filter(Boolean);
+  // Clear edit context when leaving the edit screen
+  if (!newPath.includes('edit') || !newPath.includes('participants')) {
+    window._editPid = null;
+  }
+  S.path = newPath;
   S.cmdInput = '';
   S.cmdSugIdx = -1;
+  S.cmdSearchQuery = '';
   render();
 }
 
@@ -759,7 +766,6 @@ function getSuggestions(input) {
 // Supports: relative keys, '..' / '...', '.sibling', 'Cat.note', full addresses
 function parseCommand(raw) {
   // Strip dictionary name prefix so displayed addresses work as-is
-  // e.g. "Lockers.EC.participants" → "EC.participants"
   let s = raw.trim().replace(/^Lockers\./i, '');
   if (!s) return null;
 
@@ -767,8 +773,7 @@ function parseCommand(raw) {
   if (s === '..' || s === 'back') return S.path.slice(0, -1);
   if (s === '...' || s === 'root' || s === '/') return [];
 
-  // Sibling navigation: starts with '.' — go to sibling note/detail
-  // e.g. '.lockers' when at EC.participants → EC.lockers
+  // Sibling navigation: starts with '.'
   if (s.startsWith('.') && s.length > 1) {
     const rel = s.slice(1).split('.');
     if (S.path.length >= 1) return [S.path[0], ...rel];
@@ -778,7 +783,7 @@ function parseCommand(raw) {
   // Contains a dot separator — could be relative or absolute
   if (s.includes('.')) {
     const parts = s.split('.');
-    // If first segment is a known category, treat as absolute from category level
+    // If first segment is a known category, treat as absolute
     if (DICT[parts[0]]) return parts;
     // Otherwise treat as relative from current cat
     if (S.path.length >= 1) return [S.path[0], ...parts];
@@ -787,7 +792,6 @@ function parseCommand(raw) {
 
   // Single token — check if it's a category name (absolute jump)
   if (DICT[s]) return [s];
-  // Check if it's a category name (case-insensitive)
   const catKey = Object.keys(DICT).find(k => k.toLowerCase() === s.toLowerCase());
   if (catKey) return [catKey];
 
@@ -800,8 +804,25 @@ function parseCommand(raw) {
   const prefix = children.find(c => c.key.toLowerCase().startsWith(s.toLowerCase()));
   if (prefix) return prefix.path;
 
-  // No match found
   return null;
+}
+
+// When a typed path has trailing non-navigable segments, strip them as a search query.
+// e.g. Clerk.search.all.jeremy_wolff → nav to Clerk.search.all, query='jeremy wolff'
+function parseCommandWithQuery(raw) {
+  const path = parseCommand(raw);
+  if (!path) return { path: null, query: '' };
+
+  // Walk backward: find the deepest navigable prefix
+  for (let i = path.length; i >= 1; i--) {
+    const slice = path.slice(0, i);
+    const key = slice.join('.');
+    if (SCREENS[key] || getChildren(slice).length > 0) {
+      const trailing = path.slice(i).join(' ').replace(/_/g, ' ').trim();
+      return { path: slice, query: trailing };
+    }
+  }
+  return { path, query: '' };
 }
 
 function renderCmdBar() {
@@ -882,10 +903,11 @@ function cmdKey(e) {
     if (S.cmdSugIdx >= 0 && sugs[S.cmdSugIdx]) {
       cmdNavigate(sugs[S.cmdSugIdx].path);
     } else if (raw) {
-      const path = parseCommand(raw);
-      if (path !== null) cmdNavigate(path);
-      else {
-        // Flash error in preview
+      const { path, query } = parseCommandWithQuery(raw);
+      if (path !== null) {
+        if (query) S.cmdSearchQuery = query;
+        cmdNavigate(path);
+      } else {
         const p = document.querySelector('.cmd-preview');
         if (p) { p.textContent = `✕ unknown: ${raw}`; p.style.color='var(--danger)'; }
       }
@@ -1319,12 +1341,15 @@ regScreen('sec.checkout', () => {
   const active = Object.entries(S.data.sessions);
   const rows = active.length
     ? active.map(([pid,s])=>{
+        const p = S.data.participants.find(x=>x.id===pid);
+        const limit = (p?.isClerk||p?.isEC) ? 120 : 60;
         const elapsed = Math.floor((Date.now()-s.start)/60000);
-        const cls = elapsed<60?'s-green':elapsed<120?'s-orange':'s-red';
+        const cls = elapsed<limit?'s-green':elapsed<limit+30?'s-orange':'s-red';
+        const timeIn = new Date(s.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
         return `<div class="session-card">
           <div class="s-timer ${cls}">${elapsed}m</div>
           <div style="flex:1"><div style="font-weight:700">${esc(s.name)}</div>
-            <div style="font-size:11px;color:var(--text3)">Checked in ${elapsed} min ago</div>
+            <div style="font-size:11px;color:var(--text3)">In at ${timeIn} · ${limit}min limit</div>
           </div>
           <button class="btn btn-sm" onclick="logCheckOut('${pid}','${esc(s.name)}')">Check Out</button>
         </div>`;
@@ -1361,14 +1386,16 @@ regScreen('sec.session_timer', () => {
   const active = Object.entries(S.data.sessions);
   const rows = active.length
     ? active.map(([pid,s])=>{
+        const p = S.data.participants.find(x=>x.id===pid);
+        const limit = (p?.isClerk||p?.isEC) ? 120 : 60;
         const elapsed = Math.floor((Date.now()-s.start)/60000);
-        const limit = 60;
         const rem = limit-elapsed;
-        const cls = rem>20?'s-green':rem>5?'s-orange':'s-red';
+        const cls = rem>15?'s-green':rem>0?'s-orange':'s-red';
+        const timeIn = new Date(s.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
         return `<div class="session-card">
-          <div class="s-timer ${cls}">${rem>0?rem+'m left':'OVER'}</div>
-          <div style="flex:1"><div style="font-weight:700">${esc(s.name)}</div>
-            <div style="font-size:11px;color:var(--text3)">In for ${elapsed} min · ${limit} min limit</div>
+          <div class="s-timer ${cls}">${rem>0?rem+'m left':Math.abs(rem)+'m OVER'}</div>
+          <div style="flex:1"><div style="font-weight:700">${esc(s.name)}${(p?.isClerk||p?.isEC)?' <span class="badge badge-blue">2hr</span>':''}</div>
+            <div style="font-size:11px;color:var(--text3)">In at ${timeIn} · ${elapsed}m elapsed · ${limit}min limit</div>
           </div>
           <button class="btn btn-sm" onclick="logCheckOut('${pid}','${esc(s.name)}')">End Session</button>
         </div>`;
@@ -1428,7 +1455,7 @@ function renderParticipantSearch(cat) {
   return `<div class="screen">
     <div class="screen-title">All Participants</div>
     <div class="mb-3">
-      <input id="ps-q" type="text" style="width:100%;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px" placeholder="Filter by name…" oninput="filterParticipants(this.value)">
+      <input id="ps-q" type="text" style="width:100%;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px" placeholder="Filter by name…" oninput="filterParticipants(this.value)" value="${esc(S.cmdSearchQuery||'')}">
     </div>
     <div style="overflow-x:auto">
       <table id="pt-table">
@@ -1564,20 +1591,45 @@ function renewSearch(cat) {
   const el = document.getElementById('rn-result');
   if (!el) return;
   if (!p) { el.innerHTML = '<div class="alert alert-warn">Not found.</div>'; return; }
+  const shifts = p.workShiftsRequired || (p.lockers||[]).length || 1;
+  // Build next-month date defaults for work shifts
+  const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth()+1);
+  const nm = nextMonth.toISOString().slice(0,7);
+  let shiftInputs = '';
+  for (let i=0; i<shifts; i++) {
+    shiftInputs += `<div class="form-group"><label>Work Date ${i+1}</label><input class="rn-workdate" type="date" placeholder="${nm}-xx"></div>`;
+  }
+  const missedNote = (p.missedShifts||[]).length > 0
+    ? `<div class="alert alert-warn" style="margin-bottom:8px">Has ${p.missedShifts.length} missed shift(s) — these will be cleared on renewal.</div>`
+    : '';
   el.innerHTML = `<div class="p-result">
     <div class="p-name">${esc(p.name)}</div>
-    <div class="info-row"><span class="info-lbl">Current Status</span><span>${p.renewed?'<span class="badge badge-green">Already Renewed</span>':'<span class="badge badge-yellow">Not Yet Renewed</span>'}</span></div>
-    <div class="info-row"><span class="info-lbl">Renewed Thru</span><span>${fmtDate(p.renewedThru)}</span></div>
-    <button class="btn btn-primary mt-3" onclick="doRenew('${p.id}','${cat}')">Mark as Renewed</button>
+    <div class="info-row"><span class="info-lbl">Status</span><span>${p.renewed?'<span class="badge badge-green">Already Renewed</span>':'<span class="badge badge-yellow">Not Yet Renewed</span>'}</span></div>
+    <div class="info-row"><span class="info-lbl">Lockers</span><span>${(p.lockers||[]).map(l=>`#${l}`).join(', ')||'None'}</span></div>
+    <div class="info-row"><span class="info-lbl">Shifts Required</span><span>${shifts}</span></div>
+    ${missedNote}
+    <div class="section-header mt-3">Assign New Work Dates (${shifts} required)</div>
+    ${shiftInputs}
+    <div class="form-group"><label>Renewed Thru</label><input id="rn-thru" type="date" value="${nm}-15"></div>
+    <button class="btn btn-primary mt-3" onclick="doRenew('${p.id}','${cat}')">Confirm Renewal</button>
   </div>`;
 }
 
 async function doRenew(pid, cat) {
   const p = S.data.participants.find(x=>x.id===pid);
   if (!p) return;
+  const workDateInputs = [...document.querySelectorAll('.rn-workdate')].map(i=>i.value).filter(Boolean);
+  const renewedThru = document.getElementById('rn-thru')?.value || null;
   p.renewed = true;
+  p.renewedThru = renewedThru;
+  if (workDateInputs.length) {
+    p.workDates = [...(p.workDates||[]).filter(d => d > isoDate()), ...workDateInputs].sort();
+  }
+  p.missedShifts = [];
+  p.workShiftsRequired = (p.lockers||[]).length || p.workShiftsRequired || 1;
   await saveParticipant(p);
-  alert(`✅ ${p.name} marked as renewed.`);
+  const el = document.getElementById('rn-result');
+  if (el) el.innerHTML = `<div class="alert alert-success">${esc(p.name)} renewed through ${fmtDate(renewedThru)}. ${workDateInputs.length} work date(s) assigned. Missed shifts cleared.</div>`;
   render();
 }
 
@@ -1666,6 +1718,7 @@ async function doAssignLocker(cat) {
   if (l.status==='assigned') { el.innerHTML=`<div class="alert alert-warn">Locker #${num} is already assigned.</div>`; return; }
   l.status='assigned'; l.participantId=p.id; l.assignedDate=isoDate(); l.neverAssigned=false;
   p.lockers=[...(p.lockers||[]),num];
+  p.workShiftsRequired = p.lockers.length;
   await saveLocker(l); await saveParticipant(p);
   el.innerHTML=`<div class="alert alert-success">Locker #${num} assigned to ${esc(p.name)}.</div>`;
   render();
@@ -1709,12 +1762,35 @@ async function doAssignLocker(cat) {
           <div class="form-group"><label>Participant Name</label><input name="pname" required placeholder="Start typing name…"></div>
           <div class="form-row">
             <div class="form-group"><label>Type</label>
-              <select name="type"><option value="temporary">Temporary</option><option value="permanent">Permanent</option></select>
+              <select name="type" onchange="toggleBarDuration(this)">
+                <option value="temporary">Temporary</option>
+                <option value="permanent">Permanent</option>
+              </select>
             </div>
-            <div class="form-group"><label>End Date (if temporary)</label><input name="endDate" type="date"></div>
+            <div class="form-group" id="bar-duration-group"><label>Duration</label>
+              <select name="duration" onchange="calcBarEndDate()">
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30" selected>30 days (default)</option>
+                <option value="90">90 days</option>
+                <option value="custom">Custom end date</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" id="bar-dates-row">
+            <div class="form-group"><label>Start Date</label><input name="startDate" type="date" value="${isoDate()}" oninput="calcBarEndDate()"></div>
+            <div class="form-group"><label>End Date</label><input name="endDate" type="date" id="bar-enddate" readonly></div>
           </div>
           <div class="form-group"><label>Reason</label>
-            <select name="reason"><option>Non-renewal</option><option>Policy violation</option><option>Missed shifts</option><option>Other</option></select>
+            <select name="reason">
+              <option>Non-renewal</option>
+              <option>Missed work shift — no mandatories signed up</option>
+              <option>Missed mandatory shift</option>
+              <option>Missed Sunday meeting</option>
+              <option>Missed power lunch</option>
+              <option>Policy violation</option>
+              <option>Other</option>
+            </select>
           </div>
           <div class="form-group"><label>Comment</label><textarea name="comment" rows="2" placeholder="Additional details…"></textarea></div>
           <button type="submit" class="btn btn-danger">Issue Bar</button>
@@ -1724,6 +1800,34 @@ async function doAssignLocker(cat) {
     </div>`);
 });
 
+function toggleBarDuration(sel) {
+  const grp = document.getElementById('bar-duration-group');
+  const row = document.getElementById('bar-dates-row');
+  if (sel.value === 'permanent') {
+    if (grp) grp.style.display='none';
+    if (row) row.style.display='none';
+  } else {
+    if (grp) grp.style.display='';
+    if (row) row.style.display='';
+    calcBarEndDate();
+  }
+}
+
+function calcBarEndDate() {
+  const durSel = document.querySelector('[name="duration"]');
+  const startIn = document.querySelector('[name="startDate"]');
+  const endIn = document.getElementById('bar-enddate');
+  if (!durSel || !startIn || !endIn) return;
+  if (durSel.value === 'custom') { endIn.removeAttribute('readonly'); return; }
+  endIn.setAttribute('readonly','');
+  const start = new Date(startIn.value || isoDate());
+  start.setDate(start.getDate() + parseInt(durSel.value));
+  endIn.value = start.toISOString().slice(0,10);
+}
+
+// Initialize bar end date on first render
+setTimeout(() => { if (document.querySelector('[name="duration"]')) calcBarEndDate(); }, 50);
+
 async function doIssueBar(e, cat) {
   e.preventDefault();
   const f = e.target;
@@ -1731,11 +1835,13 @@ async function doIssueBar(e, cat) {
   const el = document.getElementById('ib-result');
   const p = S.data.participants.find(x=>!x.archived&&x.name.toLowerCase().includes(name));
   if (!p) { el.innerHTML='<div class="alert alert-warn">Participant not found.</div>'; return; }
-  const bar = { id:genId(), type:f.type.value, reason:f.reason.value, comment:f.comment.value.trim(), startDate:isoDate(), endDate:f.endDate.value||null, issued:true, changes:[] };
+  const endDate = f.type.value === 'permanent' ? null : (document.getElementById('bar-enddate')?.value || null);
+  const bar = { id:genId(), type:f.type.value, reason:f.reason.value, comment:f.comment.value.trim(), startDate:f.startDate?.value||isoDate(), endDate, issued:true, issuedDate:isoDate(), changes:[] };
   p.barred = true;
   p.bars = [...(p.bars||[]), bar];
   await saveParticipant(p);
-  el.innerHTML=`<div class="alert alert-danger">Bar issued to ${esc(p.name)}.</div>`;
+  await db.upsert('sl_bar_recs',{id:genId(),participant_id:p.id,reason:bar.reason,date:isoDate(),bar_issued:true,bar_date:isoDate(),end_date:endDate});
+  el.innerHTML=`<div class="alert alert-danger">Bar issued to ${esc(p.name)} — ${bar.type}${endDate?', ends '+fmtDate(endDate):''}.</div>`;
   render();
 }
 
@@ -1822,17 +1928,59 @@ function startChatPoll() {
         <td style="font-weight:700">${esc(u.name||u.username)}</td>
         <td><span class="badge badge-blue">${esc(u.role)}</span></td>
         <td style="font-family:monospace;font-size:11px">${esc(u.username)}</td>
-        <td><button class="btn btn-sm" onclick="resetUserPw('${u.id}','${esc(u.name||u.username)}','${cat}')">Reset PW</button></td>
+        <td>
+          <button class="btn btn-sm" onclick="resetUserPw('${u.id}','${esc(u.name||u.username)}','${cat}')">Reset PW</button>
+          <button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="removeUser('${u.id}','${esc(u.name||u.username)}')">Remove</button>
+        </td>
       </tr>`).join('');
+    const pwLogRows = S.data.pwResetLog.slice(0,10).map(r=>`
+      <tr><td>${esc(r.targetUser)}</td><td>${esc(r.resetBy)}</td><td>${fmtDate(r.date)}</td></tr>`).join('');
     return `<div class="screen">
       <div class="screen-title">Manage Users</div>
       <div style="overflow-x:auto">
         <table><thead><tr><th>Name</th><th>Role</th><th>Username</th><th>Actions</th></tr></thead>
         <tbody>${rows||'<tr><td colspan="4" style="color:var(--text3);text-align:center">No users found</td></tr>'}</tbody></table>
       </div>
+      <div class="section-header mt-4">Add New User</div>
+      <form class="card" onsubmit="addUser(event)">
+        <div class="form-row">
+          <div class="form-group"><label>Display Name</label><input name="uname" required placeholder="Jane Smith"></div>
+          <div class="form-group"><label>Username</label><input name="username" required placeholder="jane.smith"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Password</label><input name="password" type="password" required placeholder="Temp password"></div>
+          <div class="form-group"><label>Role</label>
+            <select name="role"><option value="ec">EC</option><option value="clerk">Clerk</option><option value="sec">Security</option></select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Add User</button>
+        <div id="au-result" style="margin-top:8px"></div>
+      </form>
+      ${pwLogRows?`<div class="section-header mt-4">Recent Password Resets</div>
+      <div style="overflow-x:auto"><table><thead><tr><th>User</th><th>Reset By</th><th>Date</th></tr></thead>
+      <tbody>${pwLogRows}</tbody></table></div>`:''}
     </div>`;
   });
 });
+
+async function addUser(e) {
+  e.preventDefault();
+  const f = e.target;
+  const newUser = { id:genId(), name:f.uname.value.trim(), username:f.username.value.trim(), role:f.role.value, password:f.password.value };
+  S.data.users.push(newUser);
+  await db.upsert('sl_users',{id:newUser.id,name:newUser.name,username:newUser.username,role:newUser.role,password:newUser.password});
+  const res = document.getElementById('au-result');
+  if (res) res.innerHTML=`<div class="alert alert-success">User ${esc(newUser.name)} added as ${newUser.role}.</div>`;
+  f.reset();
+  render();
+}
+
+async function removeUser(uid, name) {
+  if (!confirm(`Remove user "${name}"? This cannot be undone.`)) return;
+  S.data.users = S.data.users.filter(u=>u.id!==uid);
+  await db.delete('sl_users',`?id=eq.${uid}`);
+  render();
+}
 
 async function resetUserPw(uid, name, cat) {
   const newPw = prompt(`New password for ${name}:`);
@@ -2202,6 +2350,13 @@ regScreen('Clerk.schedule.lunch_edit', () => renderLunchSchedule('Clerk', true))
 // ════════════════════════════════════════════════════
 //  EC / CLERK — SUNDAY ATTENDANCE
 // ════════════════════════════════════════════════════
+function sundayComplianceBadge(daysSince, hasMeetings) {
+  if (!hasMeetings) return '<span class="badge badge-gray">Never</span>';
+  if (daysSince <= 20) return `<span class="badge badge-green">${daysSince}d — OK</span>`;
+  if (daysSince <= 30) return `<span class="badge badge-yellow">${daysSince}d — Due Soon</span>`;
+  return `<span class="badge badge-red">${daysSince}d — Overdue</span>`;
+}
+
 function renderSundayAttendance(cat, editable) {
   const meetings = [...S.data.sundayMeetings].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12);
   const blocks = meetings.map(m=>{
@@ -2222,10 +2377,33 @@ function renderSundayAttendance(cat, editable) {
       ${editable?`<button class="btn btn-sm mt-2" onclick="editSundayMeeting('${m.id}')">Edit Attendees</button>`:''}
     </div>`;
   }).join('');
+
+  // Compliance table: all active participants with days-since-last-attended
+  const allDates = S.data.sundayMeetings.map(m=>m.date).sort();
+  const compRows = S.data.participants.filter(p=>!p.archived).map(p=>{
+    const attended = S.data.sundayMeetings
+      .filter(m=>(m.attendees||[]).includes(p.id))
+      .map(m=>m.date).sort();
+    const lastDate = attended.length ? attended[attended.length-1] : null;
+    const daysSince = lastDate ? daysBetween(lastDate, isoDate()) : null;
+    const badge = sundayComplianceBadge(daysSince, lastDate!==null);
+    return `<tr>
+      <td style="font-weight:600">${esc(p.name)}</td>
+      <td>${lastDate ? fmtDate(lastDate) : '—'}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+
   return `<div class="screen">
-    <div class="screen-title">Sunday Meeting Attendance</div>
+    <div class="screen-title">Sunday Meetings</div>
     ${editable?`<button class="btn btn-primary btn-sm mb-3" onclick="newSundayMeeting()">+ New Meeting</button>`:''}
-    ${blocks||'<div class="alert alert-info">No Sunday meetings recorded.</div>'}
+    <div class="section-header">Compliance — All Participants</div>
+    <div style="overflow-x:auto;margin-bottom:16px">
+      <table><thead><tr><th>Participant</th><th>Last Attended</th><th>Status</th></tr></thead>
+      <tbody>${compRows||'<tr><td colspan="3" style="color:var(--text3)">No participant data.</td></tr>'}</tbody>
+    </table></div>
+    <div class="section-header">Recent Meetings</div>
+    ${blocks||'<div style="color:var(--text3)">No meetings recorded.</div>'}
     <div id="sunday-edit-area"></div>
   </div>`;
 }
@@ -2344,6 +2522,17 @@ function renderReports(cat, full) {
       <td>${Math.abs(daysBetween(today,p.powerLunchDate))} days overdue</td>
     </tr>`).join('');
 
+    // Bar History
+    const allBars = active.flatMap(p=>(p.bars||[]).map(b=>({...b,pName:p.name})))
+      .sort((a,b)=>(b.issuedDate||b.startDate||'').localeCompare(a.issuedDate||a.startDate||''));
+    const barRows = allBars.map(b=>`<tr>
+      <td style="font-weight:600">${esc(b.pName)}</td>
+      <td>${b.type==='permanent'?'<span class="badge badge-red">Permanent</span>':'<span class="badge badge-yellow">Temporary</span>'}</td>
+      <td>${esc(b.reason||'')}</td>
+      <td style="font-size:11px">${fmtDate(b.startDate||b.issuedDate)}</td>
+      <td style="font-size:11px">${b.endDate?fmtDate(b.endDate):'—'}</td>
+    </tr>`).join('');
+
     html += `
     <div class="section-header">Pending Renewal (oldest first)</div>
     <div style="overflow-x:auto"><table><thead><tr><th>Name</th><th>Renewed Thru</th><th>Lockers</th></tr></thead>
@@ -2353,11 +2542,63 @@ function renderReports(cat, full) {
     <tbody>${missedRows||'<tr><td colspan="3" style="color:var(--text3)">None</td></tr>'}</tbody></table></div>
     <div class="section-header mt-4">Power Lunch Overdue</div>
     <div style="overflow-x:auto"><table><thead><tr><th>Name</th><th>Due Date</th><th>Status</th></tr></thead>
-    <tbody>${lunchRows||'<tr><td colspan="3" style="color:var(--text3)">None overdue</td></tr>'}</tbody></table></div>`;
+    <tbody>${lunchRows||'<tr><td colspan="3" style="color:var(--text3)">None overdue</td></tr>'}</tbody></table></div>
+    <div class="section-header mt-4">Bar History</div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Name</th><th>Type</th><th>Reason</th><th>Start</th><th>End</th></tr></thead>
+    <tbody>${barRows||'<tr><td colspan="5" style="color:var(--text3)">No bars issued</td></tr>'}</tbody></table></div>
+    <div class="section-header mt-4">Power Lunch Report</div>
+    <button class="btn btn-sm btn-primary" onclick="printPowerLunchReport()">Print Weekly Report</button>`;
   }
 
   html += '</div>';
   return html;
+}
+
+function printPowerLunchReport() {
+  const today = new Date();
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const active = S.data.participants.filter(p=>!p.archived);
+  const assigned = active.filter(p=>(p.lockers||[]).length>0);
+  // Locker-days = sum of days each locker has been held this week
+  const lockerDays = assigned.reduce((sum,p)=>{
+    const since = p.memberSince||isoDate();
+    const daysHeld = Math.min(7, daysBetween(since, isoDate()));
+    return sum + ((p.lockers||[]).length * Math.max(0,daysHeld));
+  },0);
+  const bars = active.filter(p=>p.barred);
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Power Lunch Report</title>
+  <style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;font-size:13px}
+  h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;margin-top:20px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  td,th{border:1px solid #ccc;padding:6px 8px;text-align:left}
+  .sig{margin-top:40px;border-top:1px solid #000;padding-top:8px}
+  @media print{button{display:none}}</style></head><body>
+  <h1>SHARE Lockers — Power Lunch Weekly Report</h1>
+  <p><strong>Week of:</strong> ${fmt(weekStart)} – ${fmt(weekEnd)}</p>
+  <p><strong>Location / Address:</strong> _______________________________</p>
+  <p><strong>Closures this week:</strong> _______</p>
+  <h2>Summary</h2>
+  <table><tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Active Participants</td><td>${active.length}</td></tr>
+    <tr><td>Locker Holders</td><td>${assigned.length}</td></tr>
+    <tr><td>Total Locker Days (est.)</td><td>${lockerDays}</td></tr>
+    <tr><td>Daily Average</td><td>${(lockerDays/7).toFixed(1)}</td></tr>
+    <tr><td>Bars Issued This Week</td><td>_______</td></tr>
+    <tr><td>Locker Opens This Week</td><td>_______</td></tr>
+  </table>
+  <h2>Daily Breakdown</h2>
+  <table><thead><tr><th>Day</th><th>Date</th><th>Opens</th><th>Notes</th></tr></thead>
+  <tbody>${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day,i)=>{
+    const d = new Date(weekStart); d.setDate(weekStart.getDate()+i);
+    return `<tr><td>${day}</td><td>${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td><td></td><td></td></tr>`;
+  }).join('')}</tbody></table>
+  <div class="sig">Staff Signature: ___________________________________ Date: _____________</div>
+  <button onclick="window.print()">Print</button>
+  </body></html>`);
+  w.document.close();
 }
 
 // EC: reports note → default to view
@@ -2377,7 +2618,7 @@ regScreen('Clerk.center.reports', () => renderReports('Clerk', true));
       <div class="screen-title">Search All</div>
       <div class="card">
         <div class="form-group"><label>Search</label>
-          <input id="sa-q" type="text" placeholder="Name, locker number, or status…" onkeydown="if(event.key==='Enter')globalSearch('${cat}')">
+          <input id="sa-q" type="text" placeholder="Name, locker number, or status…" onkeydown="if(event.key==='Enter')globalSearch('${cat}')" value="${esc(S.cmdSearchQuery||'')}">
         </div>
         <button class="btn btn-primary" onclick="globalSearch('${cat}')">Search</button>
       </div>
@@ -2438,13 +2679,23 @@ regScreen('Clerk.center.bag_tag', () => {
   const items = S.data.bagTag.filter(b=>!b.archived);
   const archived = S.data.bagTag.filter(b=>b.archived);
   const rows = items.length
-    ? items.map(b=>`<tr>
-        <td style="font-weight:600">${esc(b.name||'Unnamed')}</td>
-        <td>${b.participantId?esc(S.data.participants.find(p=>p.id===b.participantId)?.name||'Unknown'):'—'}</td>
-        <td style="font-size:11px;color:var(--text3)">${fmtDate(b.date)}</td>
-        <td>${b.barred?'<span class="badge badge-red">Barred</span>':''}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="archiveBagTag('${b.id}')">Archive</button></td>
-      </tr>`).join('')
+    ? items.map(b=>{
+        const p = b.participantId ? S.data.participants.find(x=>x.id===b.participantId) : null;
+        const pName = p ? esc(p.name) : '—';
+        const lockerList = p ? (p.lockers||[]).map(l=>`#${l}`).join(', ') : '';
+        const barBadge = b.barred ? '<span class="badge badge-red">Barred</span>' : '';
+        return `<tr>
+          <td style="font-weight:600">${esc(b.name||'Unnamed')}</td>
+          <td>${pName}${lockerList?`<br><span style="font-size:11px;color:var(--text3)">${lockerList}</span>`:''}</td>
+          <td style="font-size:11px;color:var(--text3)">${fmtDate(b.date)}</td>
+          <td>${barBadge}</td>
+          <td style="white-space:nowrap">
+            ${p&&!b.barred?`<button class="btn btn-sm btn-danger" onclick="btIssueBar('${b.id}')">Issue Bar</button> `:''}
+            ${p&&(p.lockers||[]).length>0?`<button class="btn btn-sm btn-warning" onclick="btReleaseLockers('${b.id}')">Release Lockers</button> `:''}
+            <button class="btn btn-sm" onclick="archiveBagTag('${b.id}')">Archive</button>
+          </td>
+        </tr>`;
+      }).join('')
     : '<tr><td colspan="5" style="color:var(--text3);text-align:center">No active items.</td></tr>';
   const archRows = archived.length
     ? archived.map(b=>`<div class="info-row">
@@ -2456,13 +2707,13 @@ regScreen('Clerk.center.bag_tag', () => {
     <div class="screen-title">Bag &amp; Tag</div>
     <div class="section-header">Active — ${items.length} item${items.length!==1?'s':''}</div>
     <div style="overflow-x:auto;margin-bottom:16px">
-      <table><thead><tr><th>Item / Name</th><th>Participant</th><th>Date</th><th>Status</th><th></th></tr></thead>
+      <table><thead><tr><th>Item</th><th>Participant / Lockers</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>${rows}</tbody></table>
     </div>
     <div class="section-header">Add Item</div>
     <form class="card" onsubmit="saveBagTagItem(event)" style="margin-bottom:16px">
-      <div class="form-group"><label>Item Description / Name</label><input name="name" required placeholder="e.g. Blue backpack"></div>
-      <div class="form-group"><label>Participant (optional)</label><input name="pname" placeholder="Search by name…"></div>
+      <div class="form-group"><label>Item Description</label><input name="name" required placeholder="e.g. Blue backpack"></div>
+      <div class="form-group"><label>Participant (name search, optional)</label><input name="pname" placeholder="Type name…"></div>
       <div class="form-group"><label>Date</label><input name="date" type="date" value="${isoDate()}"></div>
       <button type="submit" class="btn btn-primary btn-sm">Add to List</button>
       <div id="bt-result" style="margin-top:8px"></div>
@@ -2483,6 +2734,39 @@ async function saveBagTagItem(e) {
   const res = document.getElementById('bt-result');
   if (res) res.innerHTML='<div class="alert alert-success">Item added.</div>';
   f.reset(); f.date.value=isoDate();
+  render();
+}
+
+async function btIssueBar(btId) {
+  const b = S.data.bagTag.find(x=>x.id===btId);
+  if (!b || !b.participantId) return;
+  const p = S.data.participants.find(x=>x.id===b.participantId);
+  if (!p) return;
+  if (!confirm(`Issue a 30-day Non-renewal bar to ${p.name}?`)) return;
+  const endDate = new Date(); endDate.setDate(endDate.getDate()+30);
+  const bar = { id:genId(), type:'temporary', reason:'Non-renewal', comment:'Issued from Bag & Tag', startDate:isoDate(), endDate:endDate.toISOString().slice(0,10), issued:true, issuedDate:isoDate() };
+  p.barred = true;
+  p.bars = [...(p.bars||[]), bar];
+  b.barred = true;
+  await saveParticipant(p);
+  await db.upsert('sl_bar_recs',{id:genId(),participant_id:p.id,reason:'Non-renewal',date:isoDate(),bar_issued:true,bar_date:isoDate(),end_date:bar.endDate});
+  await db.update('sl_bag_tag',{barred:true},`?id=eq.${btId}`);
+  render();
+}
+
+async function btReleaseLockers(btId) {
+  const b = S.data.bagTag.find(x=>x.id===btId);
+  if (!b || !b.participantId) return;
+  const p = S.data.participants.find(x=>x.id===b.participantId);
+  if (!p || !(p.lockers||[]).length) return;
+  if (!confirm(`Release all lockers (${p.lockers.join(', ')}) from ${p.name}? This will also set their work shifts required to 0.`)) return;
+  p.lockers.forEach(lid => {
+    const l = S.data.lockers[lid];
+    if (l) { l.status='available'; l.participantId=null; l.releasedDate=isoDate(); }
+  });
+  p.lockers = [];
+  p.workShiftsRequired = 0;
+  await saveParticipant(p);
   render();
 }
 
@@ -2545,7 +2829,7 @@ async function releaseLockerById() {
   if (!confirm(`Release locker #${num}${p?' from '+p.name:''}?`)) return;
   l.status='available'; l.participantId=null; l.releasedDate=isoDate();
   await saveLocker(l);
-  if (p) { p.lockers=(p.lockers||[]).filter(x=>x!==num); await saveParticipant(p); }
+  if (p) { p.lockers=(p.lockers||[]).filter(x=>x!==num); p.workShiftsRequired=p.lockers.length; await saveParticipant(p); }
   if(el) el.innerHTML=`<div class="alert alert-success">Locker #${num} released.</div>`;
   render();
 }
@@ -2622,6 +2906,18 @@ function render() {
   // Scroll chat to bottom if visible
   const feed = document.getElementById('chat-feed');
   if (feed) feed.scrollTop = feed.scrollHeight;
+
+  // Auto-trigger search/filter if a cmdSearchQuery was set from command bar
+  if (S.cmdSearchQuery) {
+    const q = S.cmdSearchQuery;
+    S.cmdSearchQuery = '';
+    // Participant filter
+    const psq = document.getElementById('ps-q');
+    if (psq) { psq.value = q; filterParticipants(q); }
+    // Global search
+    const saq = document.getElementById('sa-q');
+    if (saq) { saq.value = q; globalSearch(S.path[0]||'EC'); }
+  }
 
   // Start chat poll if EC/Clerk logged in
   if (S.user && (S.user.role==='ec'||S.user.role==='clerk')) startChatPoll();
