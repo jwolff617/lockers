@@ -286,6 +286,12 @@ function barRecFromDb(r) {
 const SLOT_COLORS = ['#E53E3E','#DD6B20','#D69E2E','#38A169','#319795','#3182CE','#5A67D8','#805AD5','#D53F8C','#718096'];
 const DICT_ADDR = 'N.Seattle.Housing.Homeless.SHARE.Lockers';
 
+const CONTENTS = {
+  public:      { label:'Public',      desc:'General information — no login required', cats:['info'] },
+  participant: { label:'Participant', desc:'Participant portal',                        cats:['part'] },
+  staff:       { label:'Staff',       desc:'Operations — staff login required',        cats:['sec','EC','Clerk'] },
+};
+
 const DICT = {
   info: { label:'Info', icon:'ℹ️', auth:null, desc:'General information — public, no login required',
     notes: {
@@ -581,45 +587,53 @@ async function saveCICounter(v) {
 //  NAV HELPERS
 // ════════════════════════════════════════════════════
 function getNode(path) {
-  const [cat, note, detail] = path;
-  if (!cat) return null;
-  const catNode = DICT[cat];
-  if (!catNode) return null;
-  if (!note) return catNode;
-  const noteNode = catNode.notes?.[note];
+  if (!path.length) return null;
+  if (CONTENTS[path[0]] && path.length === 1) return CONTENTS[path[0]];
+  const leg = CONTENTS[path[0]] ? path.slice(1) : path;
+  const [cat, note, detail] = leg;
+  if (!cat || !DICT[cat]) return null;
+  if (!note) return DICT[cat];
+  const noteNode = DICT[cat].notes?.[note];
   if (!noteNode) return null;
   if (!detail) return noteNode;
   return noteNode.details?.[detail] || null;
 }
 
 function getChildren(path) {
-  if (path.length === 0) return Object.entries(DICT).filter(([k])=>canSee(k)).map(([k,v])=>({key:k,...v,path:[k]}));
-  const [cat, note] = path;
+  if (path.length === 0) {
+    return Object.entries(CONTENTS)
+      .filter(([,v]) => v.cats.some(canSee))
+      .map(([k,v]) => ({ key:k, label:v.label, desc:v.desc, path:[k] }));
+  }
+  const [cont, cat, note] = path;
   if (path.length === 1) {
-    const n = DICT[cat]?.notes;
-    return n ? Object.entries(n).map(([k,v])=>({key:k,...v,path:[cat,k]})) : [];
+    return (CONTENTS[cont]?.cats || []).filter(canSee).map(k => ({ key:k, ...DICT[k], path:[cont,k] }));
   }
   if (path.length === 2) {
+    const n = DICT[cat]?.notes;
+    return n ? Object.entries(n).map(([k,v])=>({key:k,...v,path:[cont,cat,k]})) : [];
+  }
+  if (path.length === 3) {
     const d = DICT[cat]?.notes?.[note]?.details;
-    return d ? Object.entries(d).map(([k,v])=>({key:k,...v,path:[cat,note,k]})) : [];
+    return d ? Object.entries(d).map(([k,v])=>({key:k,...v,path:[cont,cat,note,k]})) : [];
   }
   return [];
 }
 
 function isLeaf(path) {
-  if (path.length === 0) return false;
+  if (path.length <= 1) return false; // root or contents level
   const node = getNode(path);
   if (!node) return false;
-  if (path.length === 1) return !node.notes || Object.keys(node.notes).length === 0;
-  if (path.length === 2) return !node.details || Object.keys(node.details).length === 0;
-  return true;
+  if (path.length === 2) return !node.notes || Object.keys(node.notes).length === 0; // category
+  if (path.length === 3) return !node.details || Object.keys(node.details).length === 0; // note
+  return true; // detail
 }
 
-function catOf(path) { return path[0] || null; }
+function catOf(path) { return path[1] || null; }
 
 function authRequired(path) {
-  if (!path.length) return null;
-  return DICT[path[0]]?.auth || null;
+  if (path.length < 2) return null;
+  return DICT[path[1]]?.auth || null;
 }
 
 function hasAccess(path) {
@@ -672,17 +686,19 @@ const mapAbbr = (key, label) => {
 
 function renderMap() {
   const path = S.path;
-  // Root level: only visible categories
-  const visibleCats = Object.keys(DICT).filter(canSee);
   const levels = [
-    { label:'Category', items: visibleCats, nodeMap: key => DICT[key] },
+    { label:'Contents', items: Object.keys(CONTENTS).filter(k => CONTENTS[k].cats.some(canSee)), nodeMap: key => CONTENTS[key] },
   ];
-  if (path.length >= 1 && DICT[path[0]]?.notes) {
-    const notes = DICT[path[0]].notes;
+  if (path.length >= 1 && CONTENTS[path[0]]) {
+    const cats = CONTENTS[path[0]].cats.filter(canSee);
+    levels.push({ label:'Category', items: cats, nodeMap: key => DICT[key] });
+  }
+  if (path.length >= 2 && DICT[path[1]]?.notes) {
+    const notes = DICT[path[1]].notes;
     levels.push({ label:'Note', items: Object.keys(notes), nodeMap: key => notes[key] });
   }
-  if (path.length >= 2 && DICT[path[0]]?.notes?.[path[1]]?.details) {
-    const details = DICT[path[0]].notes[path[1]].details;
+  if (path.length >= 3 && DICT[path[1]]?.notes?.[path[2]]?.details) {
+    const details = DICT[path[1]].notes[path[2]].details;
     levels.push({ label:'Detail', items: Object.keys(details), nodeMap: key => details[key] });
   }
 
@@ -705,7 +721,7 @@ function renderMap() {
 //  HEADER RENDERER
 // ════════════════════════════════════════════════════
 function renderHeader() {
-  const pathStr = S.path.length ? 'Lockers.' + S.path.join('.') : 'Lockers';
+  const pathStr = S.path.length ? 'Lockers.' + (CONTENTS[S.path[0]] ? S.path.slice(1) : S.path).join('.') : 'Lockers';
   const userStr = S.user ? `${S.user.name} <span class="badge badge-blue">${S.user.role}</span>` : '<span class="badge badge-gray">Guest</span>';
   const themeBtn = `<button class="btn" onclick="toggleTheme()">${S.theme==='light'?'☾ Dark':'☀ Light'}</button>`;
   const authBtn = S.user
@@ -744,14 +760,16 @@ let _cmdHistIdx = -1;
 // Prompt shows last 1-2 path segments so user always knows context
 function getCmdPrompt() {
   if (S.path.length === 0) return 'Lockers';
-  if (S.path.length === 1) return S.path[0];
+  if (S.path.length === 1) return S.path[0];       // contents area
+  if (S.path.length === 2) return S.path[1];       // category
   return S.path.slice(-2).join('.');
 }
 
 // Placeholder adapts to current depth
 function getCmdPlaceholder() {
-  if (S.path.length === 0) return 'type a category (e.g. EC, info, sec)…';
-  if (S.path.length === 1) return 'type a note, or .. to go up…';
+  if (S.path.length === 0) return 'type a contents area (public, participant, staff)…';
+  if (S.path.length === 1) return 'type a category (e.g. EC, info, sec)…';
+  if (S.path.length === 2) return 'type a note, or .. to go up…';
   return 'type an action, .. to go up, or full address…';
 }
 
@@ -780,24 +798,31 @@ function parseCommand(raw) {
   // Sibling navigation: starts with '.'
   if (s.startsWith('.') && s.length > 1) {
     const rel = s.slice(1).split('.');
-    if (S.path.length >= 1) return [S.path[0], ...rel];
+    if (S.path.length >= 2) return [S.path[0], S.path[1], ...rel];
+    if (S.path.length === 1) return [S.path[0], ...rel];
     return rel;
   }
 
   // Contains a dot separator — could be relative or absolute
   if (s.includes('.')) {
     const parts = s.split('.');
-    // If first segment is a known category, treat as absolute
-    if (DICT[parts[0]]) return parts;
+    // If first segment is contents, treat as absolute
+    if (CONTENTS[parts[0]]) return parts;
+    // If first segment is a category, prepend its contents area
+    if (DICT[parts[0]]) { const ck=Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(parts[0])); return ck?[ck,...parts]:parts; }
     // Otherwise treat as relative from current cat
-    if (S.path.length >= 1) return [S.path[0], ...parts];
+    if (S.path.length >= 2) return [S.path[0], S.path[1], ...parts];
+    if (S.path.length === 1) return [S.path[0], ...parts];
     return parts;
   }
 
-  // Single token — check if it's a category name (absolute jump)
-  if (DICT[s]) return [s];
+  // Single token — check contents first, then category
+  if (CONTENTS[s]) return [s];
+  const contKey = Object.keys(CONTENTS).find(k => k.toLowerCase() === s.toLowerCase());
+  if (contKey) return [contKey];
+  if (DICT[s]) { const ck = Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(s)); return ck?[ck,s]:[s]; }
   const catKey = Object.keys(DICT).find(k => k.toLowerCase() === s.toLowerCase());
-  if (catKey) return [catKey];
+  if (catKey) { const ck = Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(catKey)); return ck?[ck,catKey]:[catKey]; }
 
   // Relative: look in current children (exact match first)
   const children = getChildren(S.path);
@@ -820,7 +845,7 @@ function parseCommandWithQuery(raw) {
   // Walk backward: find the deepest navigable prefix
   for (let i = path.length; i >= 1; i--) {
     const slice = path.slice(0, i);
-    const key = slice.join('.');
+    const key = (CONTENTS[slice[0]] ? slice.slice(1) : slice).join('.');
     if (SCREENS[key] || getChildren(slice).length > 0) {
       const trailing = path.slice(i).join(' ').replace(/_/g, ' ').trim();
       return { path: slice, query: trailing };
@@ -844,7 +869,7 @@ function renderCmdBar() {
     </div>`;
   }).join('');
 
-  const currentAddr = S.path.length ? 'Lockers.' + S.path.join('.') : 'Lockers';
+  const currentAddr = S.path.length ? 'Lockers.' + (CONTENTS[S.path[0]] ? S.path.slice(1) : S.path).join('.') : 'Lockers';
   return `
     <div class="cmd-addr">${esc(currentAddr)}</div>
     <div class="cmd-row">
@@ -1084,8 +1109,10 @@ async function doLogin(role) {
       // header login: navigate to the user's home category
       const roleHome = { clerk:'Clerk', ec:'EC', sec:'sec', security:'sec', part:'part' };
       const home = roleHome[S.user?.role];
-      if (home) nav([home]);
-      else render();
+      if (home) {
+        const ck = Object.keys(CONTENTS).find(k => CONTENTS[k].cats.includes(home));
+        nav(ck ? [ck, home] : [home]);
+      } else render();
     }
   } catch(e) {
     errEl.innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`;
@@ -1110,13 +1137,14 @@ const SCREENS = {};
 function regScreen(addr, fn) { SCREENS[addr] = fn; }
 
 function renderScreen(path) {
-  const key = path.join('.');
+  const leg = CONTENTS[path[0]] ? path.slice(1) : path;
+  const key = leg.join('.');
   if (SCREENS[key]) return SCREENS[key]();
   // Coming soon
   const node = getNode(path);
   return `<div class="coming-soon">
     <div class="cs-icon">${node?.icon||'🚧'}</div>
-    <div class="cs-addr">Lockers.${key}</div>
+    <div class="cs-addr">Lockers.${leg.join('.')}</div>
     <div class="cs-label">${node?.label||key}</div>
     <div class="cs-note">This screen is under construction.</div>
   </div>`;
