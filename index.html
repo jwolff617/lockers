@@ -96,6 +96,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 .l-chip{padding:5px 3px;border-radius:5px;text-align:center;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all .12s}
 .l-chip.available{background:#d1fae5;color:#065f46;border-color:#6ee7b7}
 .l-chip.assigned{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.l-chip.barred{background:#fef3c7;color:#92400e;border-color:#fbbf24}
 .l-chip.broken{background:#fce7f3;color:#9d174d;border-color:#f9a8d4}
 .l-chip.selected{box-shadow:0 0 0 2px var(--accent)!important;border-color:var(--accent)!important}
 .locker-legend{display:flex;gap:10px;font-size:11px;margin-bottom:6px;flex-wrap:wrap}
@@ -1687,20 +1688,28 @@ async function releaseLocker(cat) {
 // ════════════════════════════════════════════════════
 function renderLockerInventory(cat) {
   const lockers = S.data.lockers;
-  const available = Object.values(lockers).filter(l=>l.status==='available'&&l.working).length;
-  const assigned = Object.values(lockers).filter(l=>l.status==='assigned').length;
-  const broken = Object.values(lockers).filter(l=>!l.working).length;
+  // Ground truth: build locker# → participant from participants' lockers arrays
+  const l2p = {};
+  S.data.participants.filter(p=>!p.archived).forEach(p=>(p.lockers||[]).forEach(n=>{ l2p[n]=p; }));
+
+  let nAvailable=0, nAssigned=0, nBarred=0, nBroken=0;
   const chips = Object.values(lockers).map(l=>{
-    const cls = !l.working ? 'broken' : l.status === 'assigned' ? 'assigned' : 'available';
-    const p = l.participantId ? S.data.participants.find(x=>x.id===l.participantId) : null;
-    return `<div class="l-chip ${cls}" title="${cls}${p?' — '+p.name:''}" onclick="lockerClick(${l.id},'${cat}')">${l.id}</div>`;
+    const p = l2p[l.id];
+    let cls;
+    if (!l.working)   { cls='broken';    nBroken++; }
+    else if (p?.barred){ cls='barred';   nBarred++; }
+    else if (p)        { cls='assigned'; nAssigned++; }
+    else               { cls='available';nAvailable++; }
+    return `<div class="l-chip ${cls}" title="${cls}${p?' — '+esc(p.name):''}" onclick="lockerClick(${l.id},'${cat}')">${l.id}</div>`;
   }).join('');
+
   return `<div class="screen">
     <div class="screen-title">Locker Inventory</div>
     <div class="locker-legend">
-      <div class="leg-item"><div class="leg-dot" style="background:#d1fae5;border:1px solid #6ee7b7"></div> Available (${available})</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#fee2e2;border:1px solid #fca5a5"></div> Assigned (${assigned})</div>
-      <div class="leg-item"><div class="leg-dot" style="background:#fce7f3;border:1px solid #f9a8d4"></div> Broken (${broken})</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#d1fae5;border:1px solid #6ee7b7"></div> Available (${nAvailable})</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fee2e2;border:1px solid #fca5a5"></div> Assigned (${nAssigned})</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fef3c7;border:1px solid #fbbf24"></div> Barred Holder (${nBarred})</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fce7f3;border:1px solid #f9a8d4"></div> Broken (${nBroken})</div>
     </div>
     <div class="locker-grid">${chips}</div>
   </div>`;
@@ -1709,7 +1718,7 @@ function renderLockerInventory(cat) {
 function lockerClick(id, cat) {
   const l = S.data.lockers[id];
   if (!l) return;
-  const p = l.participantId ? S.data.participants.find(x=>x.id===l.participantId) : null;
+  const p = S.data.participants.find(x=>!x.archived&&(x.lockers||[]).includes(id));
   const msg = `Locker #${id}\nStatus: ${l.status}\n${p?'Assigned to: '+p.name:'Unassigned'}\n\nMark as: (1) Available  (2) Broken/Fixed  (3) Cancel`;
   const choice = prompt(msg+'\n\nEnter 1, 2, or 3:');
   if (choice === '1' && l.status !== 'available') {
