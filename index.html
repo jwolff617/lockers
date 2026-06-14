@@ -348,6 +348,7 @@ const DICT = {
       },
       bars: { label:'Bars', icon:'🚫', desc:'Bar management',
         details: {
+          list:            { label:'Active Bars',     icon:'📋', desc:'All currently barred participants' },
           issue:           { label:'Issue Bar',       icon:'🚫', desc:'Issue a bar (temp or permanent)' },
           edit:            { label:'Edit Bar',        icon:'✏️', desc:'Edit existing bar' },
           recommendations: { label:'Recommendations', icon:'⚠️', desc:'Pending bar recommendations' },
@@ -416,6 +417,7 @@ const DICT = {
       },
       bars: { label:'Bars', icon:'🚫', desc:'Bar management',
         details: {
+          list:            { label:'Active Bars',     icon:'📋', desc:'All currently barred participants' },
           issue:           { label:'Issue Bar',       icon:'🚫', desc:'Issue a bar (temp or permanent)' },
           edit:            { label:'Edit Bar',        icon:'✏️', desc:'Edit existing bar' },
           recommendations: { label:'Recommendations', icon:'⚠️', desc:'Pending bar recommendations' },
@@ -1760,7 +1762,31 @@ async function doAssignLocker(cat) {
 //  EC / CLERK — BARS
 // ════════════════════════════════════════════════════
 ['EC','Clerk'].forEach(cat => {
-  regScreen(`${cat}.bars`, () => { S.path=[cat,'bars','recommendations']; render(); });
+  regScreen(`${cat}.bars`, () => { S.path=[cat,'bars','list']; render(); });
+
+  regScreen(`${cat}.bars.list`, () => {
+    const barred = S.data.participants.filter(p=>!p.archived&&p.barred)
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    const rows = barred.map(p => {
+      const lb = (p.bars||[]).filter(b=>b.issued).slice(-1)[0];
+      return `<tr style="cursor:pointer" onclick="window._editPid='${p.id}';nav(['${cat}','participants','edit'])">
+        <td style="font-weight:600">${esc(p.name)}</td>
+        <td>${(p.lockers||[]).map(l=>`<span class="badge badge-blue">#${l}</span>`).join(' ')||'—'}</td>
+        <td>${lb?esc(lb.reason||'—'):'—'}</td>
+        <td>${lb?.type==='permanent'?'<span class="badge badge-red">Permanent</span>':'<span class="badge badge-yellow">Temporary</span>'}</td>
+        <td style="font-size:11px">${lb?.startDate?fmtDate(lb.startDate):'—'}</td>
+        <td style="font-size:11px">${lb?.endDate?fmtDate(lb.endDate):lb?.type==='permanent'?'<span class="badge badge-red">No end</span>':'—'}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="screen">
+      <div class="screen-title">Active Bars <span class="badge badge-red" style="font-size:13px;margin-left:8px">${barred.length}</span></div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Name</th><th>Lockers</th><th>Reason</th><th>Type</th><th>Start</th><th>End</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:20px">No active bars</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+  });
+
   regScreen(`${cat}.bars.recommendations`, () => {
     const recs = S.data.barRecs.filter(r=>!r.barIssued&&!r.dismissed);
     const rows = recs.length
@@ -1791,7 +1817,13 @@ async function doAssignLocker(cat) {
       <div class="screen-title">Issue Bar</div>
       <form onsubmit="doIssueBar(event,'${cat}')">
         <div class="card">
-          <div class="form-group"><label>Participant Name</label><input name="pname" required placeholder="Start typing name…"></div>
+          <div class="form-group" style="position:relative">
+            <label>Participant (name or locker #)</label>
+            <input id="ib-search" type="text" placeholder="Search name or locker #…" autocomplete="off" oninput="ibSearch()" required>
+            <input type="hidden" name="pid" id="ib-pid">
+            <div id="ib-dropdown" style="position:absolute;left:0;right:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:240px;overflow-y:auto"></div>
+          </div>
+          <div id="ib-selected" style="display:none;margin-bottom:12px"></div>
           <div class="form-row">
             <div class="form-group"><label>Type</label>
               <select name="type" onchange="toggleBarDuration(this)">
@@ -1832,6 +1864,45 @@ async function doAssignLocker(cat) {
     </div>`);
 });
 
+function ibSearch() {
+  const q = (document.getElementById('ib-search')?.value||'').trim().toLowerCase();
+  const dd = document.getElementById('ib-dropdown');
+  const sel = document.getElementById('ib-selected');
+  document.getElementById('ib-pid').value = '';
+  if (sel) sel.style.display = 'none';
+  if (!dd) return;
+  if (!q) { dd.innerHTML=''; return; }
+  const matches = S.data.participants.filter(p=>!p.archived&&(
+    p.name.toLowerCase().includes(q)||(p.lockers||[]).some(l=>String(l).includes(q))
+  )).slice(0,8);
+  dd.innerHTML = matches.map(p=>`
+    <div onclick="ibSelect('${p.id}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''">
+      <div style="flex:1">
+        <strong>${esc(p.name)}</strong>
+        ${p.barred?'<span class="badge badge-red" style="margin-left:6px">Barred</span>':''}
+      </div>
+      <div>${(p.lockers||[]).map(l=>`<span class="badge badge-blue">#${l}</span>`).join(' ')||'<span style="color:var(--text3);font-size:11px">No locker</span>'}</div>
+    </div>`).join('')||`<div style="padding:10px 12px;color:var(--text3)">No participants found</div>`;
+}
+
+function ibSelect(pid) {
+  const p = S.data.participants.find(x=>x.id===pid);
+  if (!p) return;
+  document.getElementById('ib-pid').value = pid;
+  const inp = document.getElementById('ib-search');
+  if (inp) inp.value = p.name;
+  const dd = document.getElementById('ib-dropdown');
+  if (dd) dd.innerHTML = '';
+  const sel = document.getElementById('ib-selected');
+  if (sel) {
+    sel.style.display = '';
+    sel.innerHTML = `<div style="padding:10px 12px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border);display:flex;align-items:center;gap:12px">
+      <div style="flex:1"><strong>${esc(p.name)}</strong>${p.barred?' <span class="badge badge-red">Already Barred</span>':''}</div>
+      <div>${(p.lockers||[]).map(l=>`<span class="badge badge-blue">#${l}</span>`).join(' ')||'<span style="color:var(--text3);font-size:11px">No locker</span>'}</div>
+    </div>`;
+  }
+}
+
 function toggleBarDuration(sel) {
   const grp = document.getElementById('bar-duration-group');
   const row = document.getElementById('bar-dates-row');
@@ -1863,10 +1934,10 @@ setTimeout(() => { if (document.querySelector('[name="duration"]')) calcBarEndDa
 async function doIssueBar(e, cat) {
   e.preventDefault();
   const f = e.target;
-  const name = f.pname.value.trim().toLowerCase();
   const el = document.getElementById('ib-result');
-  const p = S.data.participants.find(x=>!x.archived&&x.name.toLowerCase().includes(name));
-  if (!p) { el.innerHTML='<div class="alert alert-warn">Participant not found.</div>'; return; }
+  const pid = f.pid?.value;
+  const p = pid ? S.data.participants.find(x=>x.id===pid&&!x.archived) : null;
+  if (!p) { el.innerHTML='<div class="alert alert-warn">Select a participant from the search results first.</div>'; return; }
   const endDate = f.type.value === 'permanent' ? null : (document.getElementById('bar-enddate')?.value || null);
   const bar = { id:genId(), type:f.type.value, reason:f.reason.value, comment:f.comment.value.trim(), startDate:f.startDate?.value||isoDate(), endDate, issued:true, issuedDate:isoDate(), changes:[] };
   p.barred = true;
