@@ -1096,7 +1096,7 @@ async function doLogin(role) {
       const authedEmail = session.user?.email;
       if (!token || !authedEmail) throw new Error('Authentication failed.');
       // Fetch this user's record from sl_users using their authenticated session
-      const uRows = await fetch(`${SUPA_URL}/rest/v1/sl_users?select=id,name,email,role`, {
+      const uRows = await fetch(`${SUPA_URL}/rest/v1/sl_users?select=*`, {
         headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${token}` }
       }).then(r => r.json());
       const ae = authedEmail.toLowerCase();
