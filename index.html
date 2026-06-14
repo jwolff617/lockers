@@ -1360,15 +1360,27 @@ function secSearch() {
 }
 
 function renderSecParticipantCard(p) {
-  const bar = p.barred ? p.bars?.[p.bars.length-1] : null;
-  const barRec = S.data.barRecs.find(r=>r.participantId===p.id&&!r.barIssued&&!r.dismissed);
   const today = isoDate();
+  // A participant is actively barred if flagged OR has a bar that isn't expired yet
+  const activeBars = (p.bars||[]).filter(b=>b.type==='permanent'||(b.endDate&&b.endDate>=today));
+  const isBarred = p.barred || activeBars.length > 0;
+  const barRec = S.data.barRecs.find(r=>r.participantId===p.id&&!r.barIssued&&!r.dismissed);
   const plDays = p.powerLunchDate ? daysBetween(today, p.powerLunchDate) : null;
   const nextShift = (p.workDates||[]).filter(d=>d>=today).sort()[0];
+
   let alertHtml = '';
-  if (p.barred) alertHtml = `<div class="alert alert-danger">BARRED — ${esc(bar?.reason||'')}. ${bar?.type==='permanent'?'Permanent.':'Ends '+fmtDate(bar?.endDate)}</div>`;
-  else if (barRec) alertHtml = `<div class="alert alert-warn">Bar Recommended: ${esc(barRec.reason)}</div>`;
-  else alertHtml = `<div class="alert alert-success">In Good Standing</div>`;
+  if (isBarred) {
+    const barsHtml = activeBars.map(b=>`<div style="margin-top:6px;font-size:12px">
+      <strong>${b.type==='permanent'?'Permanent':'Temporary'}</strong>: ${esc(b.reason||'No reason given')}
+      ${b.type!=='permanent'?`— ends ${fmtDate(b.endDate)}`:''}
+    </div>`).join('');
+    alertHtml = `<div class="alert alert-danger"><strong>INACTIVE — BARRED</strong>${barsHtml}</div>`;
+  } else if (barRec) {
+    alertHtml = `<div class="alert alert-warn"><strong>Recommended for Bar</strong>: ${esc(barRec.reason)}</div>`;
+  } else {
+    alertHtml = `<div class="alert alert-success">In Good Standing</div>`;
+  }
+
   const chips = (p.lockers||[]).map(l=>`<span class="p-locker-tag">#${l}</span>`).join('');
   return `<div class="p-result">
     <div class="p-name">${esc(p.name)}</div>
@@ -1378,17 +1390,20 @@ function renderSecParticipantCard(p) {
     <div class="info-row"><span class="info-lbl">Next Work Shift</span><span>${nextShift?fmtDate(nextShift):'None scheduled'}</span></div>
     ${plDays!==null?`<div class="info-row"><span class="info-lbl">Power Lunch</span><span>${plDays<=0?'<span class="badge badge-red">Overdue</span>':plDays<=30?`<span class="badge badge-yellow">In ${plDays} days</span>`:`<span class="badge badge-green">${fmtDate(p.powerLunchDate)}</span>`}</span></div>`:''}
     <div class="flex gap-2 mt-3">
-      <button class="btn btn-primary" onclick="logCheckIn('${p.id}','${esc(p.name)}')">Check In</button>
-      <button class="btn" onclick="logCheckOut('${p.id}','${esc(p.name)}')">Check Out</button>
+      ${isBarred
+        ? `<button class="btn btn-danger" disabled style="opacity:.5;cursor:not-allowed">Barred — Cannot Check In</button>`
+        : `<button class="btn btn-primary" onclick="logCheckIn('${p.id}')">Check In</button>`}
+      <button class="btn" onclick="logCheckOut('${p.id}')">Check Out</button>
     </div>
   </div>`;
 }
 
-async function logCheckIn(pid, name) {
+async function logCheckIn(pid) {
+  const p = S.data.participants.find(x=>x.id===pid);
+  const name = p?.name || pid;
   const ci = { id:genId(), participant_id:pid, name, type:'in', date:isoDate(), ts:new Date().toISOString() };
   S.data.sessions[pid] = { start:Date.now(), name };
   await saveCheckIn(ci);
-  // bump counter
   const today = isoDate();
   const ctr = S.data.checkInCounter;
   const newCtr = { count:(ctr.date===today?ctr.count:0)+1, date:today };
@@ -1397,7 +1412,8 @@ async function logCheckIn(pid, name) {
   render();
 }
 
-async function logCheckOut(pid, name) {
+async function logCheckOut(pid) {
+  const name = S.data.sessions[pid]?.name || S.data.participants.find(x=>x.id===pid)?.name || pid;
   delete S.data.sessions[pid];
   const ci = { id:genId(), participant_id:pid, name, type:'out', date:isoDate(), ts:new Date().toISOString() };
   await saveCheckIn(ci);
@@ -1405,8 +1421,20 @@ async function logCheckOut(pid, name) {
   render();
 }
 
-regScreen('sec.checkin', () => `
-  <div class="screen">
+regScreen('sec.checkin', () => {
+  const today = isoDate();
+  const pendingRecs = S.data.barRecs.filter(r=>!r.barIssued&&!r.dismissed);
+  const recsHtml = pendingRecs.length ? `
+    <div class="section-header mt-4" style="color:#d69e2e">⚠️ Pending Bar Recommendations</div>
+    ${pendingRecs.map(r=>{
+      const p = S.data.participants.find(x=>x.id===r.participantId);
+      const chips = (p?.lockers||[]).map(l=>`<span class="p-locker-tag">#${l}</span>`).join('');
+      return `<div class="card" style="border-left:3px solid #d69e2e;padding:10px 14px">
+        <div style="font-weight:700">${esc(p?.name||r.participantId)} ${chips}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">${esc(r.reason)} — ${fmtDate(r.date)}</div>
+      </div>`;
+    }).join('')}` : '';
+  return `<div class="screen">
     <div class="screen-title">Check In</div>
     <div class="card">
       <div class="form-group"><label>Name or Locker Number</label>
@@ -1415,7 +1443,9 @@ regScreen('sec.checkin', () => `
       <button class="btn btn-primary" onclick="ciSearch()">Find &amp; Check In</button>
     </div>
     <div id="ci-result"></div>
-  </div>`);
+    ${recsHtml}
+  </div>`;
+});
 
 function ciSearch() {
   const q = document.getElementById('ci-q')?.value?.trim().toLowerCase();
@@ -1441,7 +1471,7 @@ regScreen('sec.checkout', () => {
           <div style="flex:1"><div style="font-weight:700">${esc(s.name)}</div>
             <div style="font-size:11px;color:var(--text3)">In at ${timeIn} · ${limit}min limit</div>
           </div>
-          <button class="btn btn-sm" onclick="logCheckOut('${pid}','${esc(s.name)}')">Check Out</button>
+          <button class="btn btn-sm" onclick="logCheckOut('${pid}')">Check Out</button>
         </div>`;
       }).join('')
     : '<div style="color:var(--text3);font-size:13px;text-align:center;padding:24px">No active sessions.</div>';
@@ -1487,7 +1517,7 @@ regScreen('sec.session_timer', () => {
           <div style="flex:1"><div style="font-weight:700">${esc(s.name)}${(p?.isClerk||p?.isEC)?' <span class="badge badge-blue">2hr</span>':''}</div>
             <div style="font-size:11px;color:var(--text3)">In at ${timeIn} · ${elapsed}m elapsed · ${limit}min limit</div>
           </div>
-          <button class="btn btn-sm" onclick="logCheckOut('${pid}','${esc(s.name)}')">End Session</button>
+          <button class="btn btn-sm" onclick="logCheckOut('${pid}')">End Session</button>
         </div>`;
       }).join('')
     : '<div style="color:var(--text3);font-size:13px;text-align:center;padding:24px">No active sessions.</div>';
@@ -2118,7 +2148,10 @@ function startChatPoll() {
           <div class="form-group"><label>Email (for password reset)</label><input name="email" type="email" placeholder="jane@example.com (optional)"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Temp Password</label><input name="password" type="password" required placeholder="They can change this later"></div>
+          <div class="form-group"><label>Password</label><input name="password" type="text" required placeholder="Set their initial password" autocomplete="new-password"></div>
+          <div class="form-group"><label>Confirm Password</label><input name="password2" type="text" required placeholder="Type it again"></div>
+        </div>
+        <div class="form-row">
           <div class="form-group"><label>Role</label>
             <select name="role"><option value="ec">EC</option><option value="clerk">Clerk</option><option value="security">Security</option></select>
           </div>
@@ -2142,8 +2175,13 @@ async function addUser(e) {
   // If no real email, use a placeholder so Supabase Auth can create the account
   const authEmail = realEmail || `${uname}@lockers.internal`;
   const password = f.password.value;
+  const password2 = f.password2.value;
   const role = f.role.value;
   const res = document.getElementById('au-result');
+  if (password !== password2) {
+    if (res) res.innerHTML = '<div class="alert alert-danger">Passwords do not match.</div>';
+    return;
+  }
   try {
     const signupRes = await fetch(`${SUPA_URL}/auth/v1/signup`, {
       method:'POST',
