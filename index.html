@@ -742,13 +742,16 @@ function renderHeader() {
 //  BREADCRUMB
 // ════════════════════════════════════════════════════
 function renderBreadcrumb() {
-  const segs = [
-    `<span class="bc-home" onclick="nav([])">Lockers</span>`
-  ];
-  S.path.forEach((seg, i) => {
+  const segs = [`<span class="bc-home" onclick="nav([])">Lockers</span>`];
+  // Skip path[0] when it's the contents key (same as the static home label)
+  const startIdx = (S.path.length > 0 && CONTENTS[S.path[0]]) ? 1 : 0;
+  S.path.slice(startIdx).forEach((seg, i) => {
+    const actualIdx = startIdx + i;
+    const subPath = S.path.slice(0, actualIdx + 1);
+    const node = getNode(subPath);
+    const label = node?.label || seg;
     segs.push(`<span class="bc-sep">›</span>`);
-    const subPath = S.path.slice(0, i+1);
-    segs.push(`<span class="bc-seg" onclick="nav(${pathJs(subPath)})">${esc(seg)}</span>`);
+    segs.push(`<span class="bc-seg" onclick="nav(${pathJs(subPath)})">${esc(label)}</span>`);
   });
   return `<div class="breadcrumb">${segs.join('')}</div>`;
 }
@@ -777,65 +780,113 @@ function getCmdPlaceholder() {
   return 'type an action, .. to go up, or full address…';
 }
 
-// Fuzzy suggestion matching — prefix first, then contains, then label
+// Suggestion matching — key/label ranked: exact > key prefix > label prefix > key contains > label contains
 function getSuggestions(input) {
   const children = getChildren(S.path);
   if (!input) return children.slice(0, 5);
-  const s = input.toLowerCase();
-  const prefix   = children.filter(c => c.key.toLowerCase().startsWith(s));
-  const contains = children.filter(c => !c.key.toLowerCase().startsWith(s) && c.key.toLowerCase().includes(s));
-  const label    = children.filter(c => !c.key.toLowerCase().includes(s) && (c.label||'').toLowerCase().includes(s));
-  return [...prefix, ...contains, ...label].slice(0, 5);
+  const s = input.toLowerCase().replace(/_/g,' ');
+  const score = c => {
+    const k = c.key.toLowerCase(), l = (c.label||'').toLowerCase();
+    if (k===s || l===s)      return 0;
+    if (k.startsWith(s))     return 1;
+    if (l.startsWith(s))     return 2;
+    if (k.includes(s))       return 3;
+    if (l.includes(s))       return 4;
+    return 99;
+  };
+  return children.map(c=>({c,s:score(c)})).filter(x=>x.s<99).sort((a,b)=>a.s-b.s).map(x=>x.c).slice(0,5);
 }
 
 // Parse a command string into a navigation target path
-// Supports: relative keys, '..' / '...', '.sibling', 'Cat.note', full addresses
 function parseCommand(raw) {
-  // Strip dictionary name prefix so displayed addresses work as-is
-  let s = raw.trim().replace(/^Lockers\./i, '');
+  let s = raw.trim().replace(/^Lockers\./i, '').replace(/^N\.Seattle\.Housing\.Homeless\.SHARE\.Lockers\./i,'');
   if (!s) return null;
+  const sl = s.toLowerCase();
 
-  // Special: go up
-  if (s === '..' || s === 'back') return S.path.slice(0, -1);
-  if (s === '...' || s === 'root' || s === '/') return [];
+  // Special tokens
+  if (sl === '..' || sl === 'back' || sl === 'up') return S.path.slice(0,-1);
+  if (sl === '...' || sl === 'root' || sl === '/' || sl === 'home') return [];
 
-  // Sibling navigation: starts with '.'
+  // Sibling: starts with '.'
   if (s.startsWith('.') && s.length > 1) {
     const rel = s.slice(1).split('.');
-    if (S.path.length >= 2) return [S.path[0], S.path[1], ...rel];
-    if (S.path.length === 1) return [S.path[0], ...rel];
-    return rel;
+    const base = S.path.length >= 2 ? S.path.slice(0,2) : S.path.slice(0,1);
+    return [...base, ...rel];
   }
 
-  // Contains a dot separator — could be relative or absolute
-  if (s.includes('.')) {
-    const parts = s.split('.');
-    // If first segment is contents, treat as absolute
-    if (CONTENTS[parts[0]]) return parts;
-    // If first segment is a category, prepend its contents area
-    if (DICT[parts[0]]) { const ck=Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(parts[0])); return ck?[ck,...parts]:parts; }
-    // Otherwise treat as relative from current cat
-    if (S.path.length >= 2) return [S.path[0], S.path[1], ...parts];
-    if (S.path.length === 1) return [S.path[0], ...parts];
-    return parts;
+  // Allow spaces as dot separators (e.g. "EC participants edit")
+  if (!s.includes('.') && s.includes(' ')) s = s.trim().replace(/\s+/g,'.');
+  const parts = s.split('.');
+
+  // Best-match helper: finds a child by key or label (exact → prefix → contains)
+  function findChild(children, token) {
+    const t = token.toLowerCase().replace(/_/g,' ');
+    return children.find(c=>c.key.toLowerCase()===t) ||
+           children.find(c=>(c.label||'').toLowerCase()===t) ||
+           children.find(c=>c.key.toLowerCase().startsWith(t)) ||
+           children.find(c=>(c.label||'').toLowerCase().startsWith(t)) ||
+           children.find(c=>c.key.toLowerCase().includes(t)) ||
+           children.find(c=>(c.label||'').toLowerCase().includes(t)) || null;
   }
 
-  // Single token — check contents first, then category
-  if (CONTENTS[s]) return [s];
-  const contKey = Object.keys(CONTENTS).find(k => k.toLowerCase() === s.toLowerCase());
+  // Walk a path segment-by-segment, return deepest valid match
+  function walk(basePath, segments) {
+    let cur = basePath;
+    for (const seg of segments) {
+      const match = findChild(getChildren(cur), seg);
+      if (!match) break;
+      cur = match.path;
+    }
+    return cur;
+  }
+
+  if (parts.length > 1) {
+    const first = parts[0].toLowerCase();
+    // Absolute: first part is a contents key
+    const contKey = Object.keys(CONTENTS).find(k=>k.toLowerCase()===first);
+    if (contKey) return walk([contKey], parts.slice(1));
+    // Absolute: first part is a category (by key or label, exact or prefix)
+    const catKey = Object.keys(DICT).find(k=>
+      k.toLowerCase()===first || (DICT[k].label||'').toLowerCase()===first ||
+      k.toLowerCase().startsWith(first) || (DICT[k].label||'').toLowerCase().startsWith(first));
+    if (catKey) {
+      const ck = Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(catKey));
+      return walk(ck?[ck,catKey]:[catKey], parts.slice(1));
+    }
+    // Relative: walk from current position
+    const rel = walk(S.path, parts);
+    if (rel.join('.')!==S.path.join('.')) return rel;
+    return null;
+  }
+
+  // Single token — match in priority order
+  const t = sl;
+  const contKey = Object.keys(CONTENTS).find(k=>k.toLowerCase()===t);
   if (contKey) return [contKey];
-  if (DICT[s]) { const ck = Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(s)); return ck?[ck,s]:[s]; }
-  const catKey = Object.keys(DICT).find(k => k.toLowerCase() === s.toLowerCase());
-  if (catKey) { const ck = Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(catKey)); return ck?[ck,catKey]:[catKey]; }
 
-  // Relative: look in current children (exact match first)
-  const children = getChildren(S.path);
-  const exact = children.find(c => c.key.toLowerCase() === s.toLowerCase());
-  if (exact) return exact.path;
+  // Category: exact key, then exact label, then prefix key, then prefix label
+  for (const test of [
+    k=>k.toLowerCase()===t,
+    k=>(DICT[k].label||'').toLowerCase()===t,
+    k=>k.toLowerCase().startsWith(t),
+    k=>(DICT[k].label||'').toLowerCase().startsWith(t),
+    k=>k.toLowerCase().includes(t),
+    k=>(DICT[k].label||'').toLowerCase().includes(t),
+  ]) {
+    const catKey = Object.keys(DICT).find(test);
+    if (catKey) { const ck=Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(catKey)); return ck?[ck,catKey]:[catKey]; }
+  }
 
-  // Relative: prefix match
-  const prefix = children.find(c => c.key.toLowerCase().startsWith(s.toLowerCase()));
-  if (prefix) return prefix.path;
+  // Children of current path
+  const ch = getChildren(S.path);
+  const childMatch =
+    ch.find(c=>c.key.toLowerCase()===t) ||
+    ch.find(c=>(c.label||'').toLowerCase()===t) ||
+    ch.find(c=>c.key.toLowerCase().startsWith(t)) ||
+    ch.find(c=>(c.label||'').toLowerCase().startsWith(t)) ||
+    ch.find(c=>c.key.toLowerCase().includes(t)) ||
+    ch.find(c=>(c.label||'').toLowerCase().includes(t));
+  if (childMatch) return childMatch.path;
 
   return null;
 }
@@ -3143,13 +3194,31 @@ document.addEventListener('keydown', e => {
   if (!inInput) {
     if (e.key==='ArrowLeft' && e.ctrlKey) {
       e.preventDefault();
-      if (S.path.length) nav(S.path.slice(0,-1));
+      if (!S.path.length) return;
+      const parentPath = S.path.slice(0,-1);
+      const siblings = getChildren(parentPath);
+      const curKey = S.path[S.path.length-1];
+      const idx = siblings.findIndex(s=>s.key===curKey);
+      if (idx > 0) nav(siblings[idx-1].path);
+      else nav(parentPath);
       return;
     }
     if (e.key==='ArrowRight' && e.ctrlKey) {
       e.preventDefault();
-      const children = getChildren(S.path);
-      if (children.length) treeClick(children[0].path);
+      if (!S.path.length) {
+        const ch = getChildren([]);
+        if (ch.length) nav(ch[0].path);
+        return;
+      }
+      const parentPath = S.path.slice(0,-1);
+      const siblings = getChildren(parentPath);
+      const curKey = S.path[S.path.length-1];
+      const idx = siblings.findIndex(s=>s.key===curKey);
+      if (idx >= 0 && idx < siblings.length-1) nav(siblings[idx+1].path);
+      else {
+        const ch = getChildren(S.path);
+        if (ch.length) nav(ch[0].path);
+      }
       return;
     }
     if (e.key==='Home' && e.ctrlKey) {
