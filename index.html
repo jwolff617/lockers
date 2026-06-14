@@ -534,6 +534,13 @@ async function loadAll() {
     S.data.lockers = lockerObj;
     S.data.barRecs = (barRows||[]).map(barRecFromDb);
     S.data.checkIns = ciRows||[];
+    // Reconstruct active sessions from today's check-ins so timers survive page refresh
+    const sessionMap = {};
+    [...S.data.checkIns].sort((a,b)=>(a.ts||'').localeCompare(b.ts||'')).forEach(ci=>{
+      if (ci.type==='in') sessionMap[ci.participant_id]={ name:ci.name, start:ci.ts?new Date(ci.ts).getTime():Date.now() };
+      else if (ci.type==='out') delete sessionMap[ci.participant_id];
+    });
+    S.data.sessions = sessionMap;
     S.data.chatMessages = (chatRows||[]).map(m=>({id:m.id,user:m.user_name,role:m.role,text:m.text,ts:m.ts}));
     S.data.users = (userRows||[]).map(userFromDb);
     S.data.bagTag = btRows||[];
@@ -1404,7 +1411,7 @@ async function logCheckIn(pid) {
   const res = document.getElementById('ci-result');
   if (res) res.innerHTML = `<div class="alert" style="background:#276749;color:#fff;font-size:18px;text-align:center;padding:28px;border-radius:8px">Saving…</div>`;
   const ci = { id:genId(), participant_id:pid, name, type:'in', date:isoDate(), ts:new Date().toISOString() };
-  S.data.sessions[pid] = { start:Date.now(), name };
+  S.data.sessions[pid] = { name, start:new Date(ci.ts).getTime() };
   await saveCheckIn(ci);
   const today = isoDate();
   const ctr = S.data.checkInCounter;
@@ -3180,7 +3187,20 @@ async function unarchiveParticipant(pid, cat) {
 // ════════════════════════════════════════════════════
 //  MAIN RENDER
 // ════════════════════════════════════════════════════
+let _timerRefreshId = null;
 function render() {
+  // Auto-refresh session timer screen every 10 seconds
+  const onTimerScreen = S.path[S.path.length-1] === 'session_timer';
+  if (onTimerScreen && !_timerRefreshId) {
+    _timerRefreshId = setInterval(() => {
+      if (S.path[S.path.length-1] === 'session_timer') render();
+      else { clearInterval(_timerRefreshId); _timerRefreshId = null; }
+    }, 10000);
+  } else if (!onTimerScreen && _timerRefreshId) {
+    clearInterval(_timerRefreshId);
+    _timerRefreshId = null;
+  }
+
   applyTheme();
   document.getElementById('hdr').innerHTML = renderHeader();
   document.getElementById('map-wrap').innerHTML = renderMap();
