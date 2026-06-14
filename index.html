@@ -221,6 +221,55 @@ async function supaSignOut() {
   _session = null;
 }
 
+const _LS_SESSION = 'sl_session';
+const _LS_USER    = 'sl_user';
+
+function savePersistedSession() {
+  try {
+    if (_session) localStorage.setItem(_LS_SESSION, JSON.stringify({
+      access_token:  _session.access_token,
+      refresh_token: _session.refresh_token,
+      expires_at:    _session.expires_at
+    }));
+    if (S.user) localStorage.setItem(_LS_USER, JSON.stringify(S.user));
+  } catch(e) {}
+}
+
+function clearPersistedSession() {
+  localStorage.removeItem(_LS_SESSION);
+  localStorage.removeItem(_LS_USER);
+}
+
+async function tryRestoreSession() {
+  try {
+    const rawUser = localStorage.getItem(_LS_USER);
+    if (!rawUser) return false;
+    const user = JSON.parse(rawUser);
+    if (user.role === 'part') {
+      S.user = user;
+      return true;
+    }
+    const rawSession = localStorage.getItem(_LS_SESSION);
+    if (!rawSession) return false;
+    const saved = JSON.parse(rawSession);
+    if (!saved.refresh_token) return false;
+    const res = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'apikey': SUPA_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: saved.refresh_token })
+    });
+    if (!res.ok) { clearPersistedSession(); return false; }
+    const fresh = await res.json();
+    _session = fresh;
+    S.user = { ...user, access_token: fresh.access_token };
+    savePersistedSession();
+    return true;
+  } catch(e) {
+    clearPersistedSession();
+    return false;
+  }
+}
+
 const db = {
   select: (t, q='') => supa(t, 'GET', null, q),
   upsert: (t, d) => supa(t, 'POST', Array.isArray(d)?d:[d], '?on_conflict=id', 'resolution=merge-duplicates,return=minimal'),
@@ -1165,6 +1214,7 @@ async function doLogin(role) {
       }) : null;
       if (!matched) throw new Error('No staff record found for this account. Contact admin to link your account.');
       S.user = { id:matched.id, name:matched.name||authedEmail, role:(matched.role||'').toLowerCase(), access_token:token };
+      savePersistedSession();
     }
     closeModal();
     S.loaded = false; // force fresh load with new session
@@ -1186,6 +1236,7 @@ async function doLogin(role) {
 }
 
 async function doLogout() {
+  clearPersistedSession();
   await supaSignOut();
   S.user = null;
   S.loaded = false;
@@ -3299,6 +3350,7 @@ document.addEventListener('keydown', e => {
 (async function init() {
   applyTheme();
   render();
+  await tryRestoreSession();
   await loadAll();
   render();
 })();
