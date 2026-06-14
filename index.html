@@ -1100,7 +1100,11 @@ async function doLogin(role) {
         headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${token}` }
       }).then(r => r.json());
       const ae = authedEmail.toLowerCase();
-      const matched = Array.isArray(uRows) ? uRows.find(u => u.email?.toLowerCase()===ae || u.username?.toLowerCase()===ae) : null;
+      const matched = Array.isArray(uRows) ? uRows.find(u => {
+        const ue = (u.email||'').toLowerCase();
+        const un = (u.username||'').toLowerCase();
+        return ue===ae || un===ae || (un+'@lockers.internal')===ae;
+      }) : null;
       if (!matched) throw new Error('No staff record found for this account. Contact admin to link your account.');
       S.user = { id:matched.id, name:matched.name||authedEmail, role:(matched.role||'').toLowerCase(), access_token:token };
     }
