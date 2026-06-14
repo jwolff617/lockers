@@ -1401,6 +1401,8 @@ function renderSecParticipantCard(p) {
 async function logCheckIn(pid) {
   const p = S.data.participants.find(x=>x.id===pid);
   const name = p?.name || pid;
+  const res = document.getElementById('ci-result');
+  if (res) res.innerHTML = `<div class="alert" style="background:#276749;color:#fff;font-size:18px;text-align:center;padding:28px;border-radius:8px">Saving…</div>`;
   const ci = { id:genId(), participant_id:pid, name, type:'in', date:isoDate(), ts:new Date().toISOString() };
   S.data.sessions[pid] = { start:Date.now(), name };
   await saveCheckIn(ci);
@@ -1408,8 +1410,12 @@ async function logCheckIn(pid) {
   const ctr = S.data.checkInCounter;
   const newCtr = { count:(ctr.date===today?ctr.count:0)+1, date:today };
   await saveCICounter(newCtr);
-  alert(`✅ ${name} checked in.`);
-  render();
+  if (res) res.innerHTML = `<div class="alert" style="background:#276749;color:#fff;font-size:22px;font-weight:700;text-align:center;padding:28px;border-radius:8px">✓ ${esc(name)} checked in</div>`;
+  setTimeout(() => {
+    if (res) res.innerHTML = '';
+    const q = document.getElementById('ci-q');
+    if (q) { q.value = ''; q.focus(); }
+  }, 2200);
 }
 
 async function logCheckOut(pid) {
