@@ -69,6 +69,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 .section-header{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:14px 0 6px}
 .card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px}
 .card h3{font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text2)}
+.nav-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px}
+.nav-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:14px 12px;cursor:pointer;transition:border-color .15s,background .15s;text-align:center}
+.nav-card:hover{border-color:var(--accent);background:var(--bg3)}
+.nav-card-icon{font-size:22px;margin-bottom:6px}
+.nav-card-label{font-weight:700;font-size:13px;color:var(--text1)}
+.nav-card-desc{font-size:11px;color:var(--text3);margin-top:3px;line-height:1.3}
 .form-group{margin-bottom:10px}
 .form-group label{display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;transition:border .15s}
@@ -356,7 +362,7 @@ const DICT = {
       misc:        { label:'Misc',        icon:'📌', desc:'Other information' },
     }
   },
-  part: { label:'Participant', icon:'👤', auth:'part', desc:'Participant portal — shared login',
+  part: { label:'Participant Log In', icon:'👤', auth:'part', desc:'Participant portal — shared login',
     notes: {
       message_board: { label:'Message Board', icon:'💬', desc:'Community message board' },
       my_locker:     { label:'My Locker',     icon:'🔒', desc:'Your assigned locker(s)' },
@@ -837,9 +843,25 @@ function getCmdPlaceholder() {
 }
 
 // Suggestion matching — key/label ranked: exact > key prefix > label prefix > key contains > label contains
+// All nodes accessible to the current user (up to 4 levels deep)
+function getAllNodes() {
+  const nodes = [];
+  getChildren([]).forEach(cont => {
+    nodes.push(cont);
+    getChildren(cont.path).forEach(cat => {
+      nodes.push(cat);
+      getChildren(cat.path).forEach(note => {
+        nodes.push(note);
+        getChildren(note.path).forEach(detail => nodes.push(detail));
+      });
+    });
+  });
+  return nodes;
+}
+
 function getSuggestions(input) {
   const children = getChildren(S.path);
-  if (!input) return children.slice(0, 5);
+  if (!input) return children.slice(0, 8);
   const s = input.toLowerCase().replace(/_/g,' ');
   const score = c => {
     const k = c.key.toLowerCase(), l = (c.label||'').toLowerCase();
@@ -850,12 +872,18 @@ function getSuggestions(input) {
     if (l.includes(s))       return 4;
     return 99;
   };
-  return children.map(c=>({c,s:score(c)})).filter(x=>x.s<99).sort((a,b)=>a.s-b.s).map(x=>x.c).slice(0,5);
+  const local = children.map(c=>({c,s:score(c)})).filter(x=>x.s<99).sort((a,b)=>a.s-b.s).map(x=>x.c);
+  if (local.length >= 5) return local.slice(0,5);
+  const seen = new Set(local.map(c=>c.path.join('.')));
+  const global = getAllNodes()
+    .filter(n=>!seen.has(n.path.join('.')))
+    .map(c=>({c,s:score(c)})).filter(x=>x.s<99).sort((a,b)=>a.s-b.s).map(x=>x.c);
+  return [...local, ...global].slice(0,5);
 }
 
 // Parse a command string into a navigation target path
 function parseCommand(raw) {
-  let s = raw.trim().replace(/^Lockers\./i, '').replace(/^N\.Seattle\.Housing\.Homeless\.SHARE\.Lockers\./i,'');
+  let s = (raw||'').trim().replace(/^Lockers\./i, '').replace(/^N\.Seattle\.Housing\.Homeless\.SHARE\.Lockers\./i,'');
   if (!s) return null;
   const sl = s.toLowerCase();
 
@@ -870,11 +898,14 @@ function parseCommand(raw) {
     return [...base, ...rel];
   }
 
-  // Allow spaces as dot separators (e.g. "EC participants edit")
+  // Allow spaces as dot separators (e.g. "clerk participants edit")
   if (!s.includes('.') && s.includes(' ')) s = s.trim().replace(/\s+/g,'.');
   const parts = s.split('.');
 
-  // Best-match helper: finds a child by key or label (exact → prefix → contains)
+  // Only categories the current user can actually see
+  const visibleCats = Object.keys(DICT).filter(canSee);
+
+  // Best-match helper: key or label, exact → prefix → contains
   function findChild(children, token) {
     const t = token.toLowerCase().replace(/_/g,' ');
     return children.find(c=>c.key.toLowerCase()===t) ||
@@ -885,7 +916,7 @@ function parseCommand(raw) {
            children.find(c=>(c.label||'').toLowerCase().includes(t)) || null;
   }
 
-  // Walk a path segment-by-segment, return deepest valid match
+  // Walk segments from basePath, returning deepest valid match
   function walk(basePath, segments) {
     let cur = basePath;
     for (const seg of segments) {
@@ -898,29 +929,36 @@ function parseCommand(raw) {
 
   if (parts.length > 1) {
     const first = parts[0].toLowerCase();
-    // Absolute: first part is a contents key
+    // Absolute from a contents key
     const contKey = Object.keys(CONTENTS).find(k=>k.toLowerCase()===first);
     if (contKey) return walk([contKey], parts.slice(1));
-    // Absolute: first part is a category (by key or label, exact or prefix)
-    const catKey = Object.keys(DICT).find(k=>
+    // Absolute from a visible category (exact/prefix by key or label)
+    const catKey = visibleCats.find(k=>
       k.toLowerCase()===first || (DICT[k].label||'').toLowerCase()===first ||
       k.toLowerCase().startsWith(first) || (DICT[k].label||'').toLowerCase().startsWith(first));
     if (catKey) {
       const ck = Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(catKey));
       return walk(ck?[ck,catKey]:[catKey], parts.slice(1));
     }
-    // Relative: walk from current position
+    // Relative from current path
     const rel = walk(S.path, parts);
     if (rel.join('.')!==S.path.join('.')) return rel;
+    // Relative from any visible category root
+    for (const ck of visibleCats) {
+      const cont = Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(ck));
+      const base = cont?[cont,ck]:[ck];
+      const tried = walk(base, parts);
+      if (tried.join('.')!==base.join('.')) return tried;
+    }
     return null;
   }
 
-  // Single token — match in priority order
+  // ── Single token ──
   const t = sl;
   const contKey = Object.keys(CONTENTS).find(k=>k.toLowerCase()===t);
   if (contKey) return [contKey];
 
-  // Category: exact key, then exact label, then prefix key, then prefix label
+  // Category match — filtered to what this user can see (exact → prefix → contains)
   for (const test of [
     k=>k.toLowerCase()===t,
     k=>(DICT[k].label||'').toLowerCase()===t,
@@ -929,20 +967,24 @@ function parseCommand(raw) {
     k=>k.toLowerCase().includes(t),
     k=>(DICT[k].label||'').toLowerCase().includes(t),
   ]) {
-    const catKey = Object.keys(DICT).find(test);
+    const catKey = visibleCats.find(test);
     if (catKey) { const ck=Object.keys(CONTENTS).find(k=>CONTENTS[k].cats.includes(catKey)); return ck?[ck,catKey]:[catKey]; }
   }
 
   // Children of current path
-  const ch = getChildren(S.path);
-  const childMatch =
-    ch.find(c=>c.key.toLowerCase()===t) ||
-    ch.find(c=>(c.label||'').toLowerCase()===t) ||
-    ch.find(c=>c.key.toLowerCase().startsWith(t)) ||
-    ch.find(c=>(c.label||'').toLowerCase().startsWith(t)) ||
-    ch.find(c=>c.key.toLowerCase().includes(t)) ||
-    ch.find(c=>(c.label||'').toLowerCase().includes(t));
+  const childMatch = findChild(getChildren(S.path), t);
   if (childMatch) return childMatch.path;
+
+  // Global search across all accessible nodes (deepest match wins)
+  const allNodes = getAllNodes();
+  const globalMatch =
+    allNodes.find(c=>c.key.toLowerCase()===t) ||
+    allNodes.find(c=>(c.label||'').toLowerCase()===t) ||
+    allNodes.find(c=>c.key.toLowerCase().startsWith(t)) ||
+    allNodes.find(c=>(c.label||'').toLowerCase().startsWith(t)) ||
+    allNodes.find(c=>c.key.toLowerCase().includes(t)) ||
+    allNodes.find(c=>(c.label||'').toLowerCase().includes(t));
+  if (globalMatch) return globalMatch.path;
 
   return null;
 }
@@ -974,9 +1016,11 @@ function renderCmdBar() {
 
   const sugHtml = sugs.map((c, i) => {
     const hi = i === S.cmdSugIdx;
-    return `<div class="cmd-sug${hi?' hi':''}" onclick="cmdSugClick(${i})" title="${esc(c.desc||'')}">
-      <span class="cs-key">${esc(c.key)}</span>
-      <span class="cs-lbl">${esc(c.label||'')}</span>
+    // Show parent path for context when suggestion is not a direct child
+    const isLocal = getChildren(S.path).some(x=>x.path.join('.')===c.path.join('.'));
+    const pathCtx = !isLocal && c.path.length > 1 ? `<span style="opacity:.6;font-size:10px">${c.path.slice(0,-1).join('.')}/</span>` : '';
+    return `<div class="cmd-sug${hi?' hi':''}" onclick="cmdSugClick(${i})" title="${esc(c.desc||c.path.join('.'))}">
+      ${pathCtx}<span class="cs-lbl">${esc(c.label||c.key)}</span>
     </div>`;
   }).join('');
 
@@ -1257,12 +1301,29 @@ function renderScreen(path) {
   const leg = CONTENTS[path[0]] ? path.slice(1) : path;
   const key = leg.join('.');
   if (SCREENS[key]) return SCREENS[key]();
-  // Coming soon
   const node = getNode(path);
+  // If this node has children, render a clickable navigation grid
+  const children = getChildren(path);
+  if (children.length > 0) {
+    return `<div class="screen">
+      <div class="screen-title">${node?.icon||''} ${esc(node?.label||key)}</div>
+      ${node?.desc?`<div style="color:var(--text3);font-size:13px;margin-bottom:14px">${esc(node.desc)}</div>`:''}
+      <div class="nav-grid">
+        ${children.map(c=>`<div class="nav-card" onclick="nav(${JSON.stringify(c.path)})">
+          <div class="nav-card-icon">${c.icon||'📄'}</div>
+          <div class="nav-card-label">${esc(c.label||c.key)}</div>
+          ${c.desc?`<div class="nav-card-desc">${esc(c.desc)}</div>`:''}
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+  // True leaf with no registered screen
+  const parentPath = path.slice(0,-1);
+  const parentLabel = parentPath.length ? (getNode(parentPath)?.label || parentPath[parentPath.length-1]) : 'Lockers';
   return `<div class="coming-soon">
     <div class="cs-icon">${node?.icon||'🚧'}</div>
-    <div class="cs-addr">Lockers.${leg.join('.')}</div>
-    <div class="cs-label">${node?.label||key}</div>
+    <div class="cs-addr"><span class="link" onclick="nav(${JSON.stringify(parentPath)})" style="cursor:pointer;text-decoration:underline">${esc(parentLabel)}</span> › ${esc(node?.label||key)}</div>
+    <div class="cs-label">${esc(node?.label||key)}</div>
     <div class="cs-note">This screen is under construction.</div>
   </div>`;
 }
