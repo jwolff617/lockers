@@ -1666,7 +1666,9 @@ function filterParticipants(q) {
 
 function renderParticipantForm(cat, p) {
   const isNew = !p;
-  const v = p || { id:genId(), name:'', lockers:[], workDates:[], powerLunchDate:'', memberSince:isoDate(), renewedThru:'', workShiftsRequired:1, notes:'' };
+  const _d = new Date(); _d.setDate(1); _d.setMonth(_d.getMonth()+1);
+  const _next15 = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-15`;
+  const v = p || { id:genId(), name:'', lockers:[], workDates:[], powerLunchDate:'', memberSince:isoDate(), renewedThru:_next15, workShiftsRequired:1, notes:'' };
   const lockersStr = (v.lockers||[]).join(', ');
   const workDatesStr = (v.workDates||[]).join(', ');
   return `<div class="screen">
